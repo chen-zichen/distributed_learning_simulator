@@ -1,1 +1,1 @@
-# federated_learning_simulator
+# distributed_learning_simulator
