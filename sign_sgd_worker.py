@@ -1,5 +1,4 @@
 import torch
-from cyy_naive_pytorch_lib.device import get_cpu_device
 from cyy_naive_pytorch_lib.trainer import Trainer
 from torch.optim.sgd import SGD
 
@@ -17,10 +16,10 @@ class SignSGDWorker(Worker):
             device=device, optimizer_step_callbacks=[self.__get_gredient]
         )
 
+    @torch.no_grad()
     def __get_gredient(self, trainer, optimizer, device):
         gradient = list()
         for group in optimizer.param_groups:
-            weight_decay = group["weight_decay"]
             momentum = group["momentum"]
             dampening = group["dampening"]
             nesterov = group["nesterov"]
@@ -29,8 +28,6 @@ class SignSGDWorker(Worker):
                 if p.grad is None:
                     continue
                 d_p = p.grad
-                if weight_decay != 0:
-                    d_p = d_p.add(p, alpha=weight_decay)
                 if momentum != 0:
                     param_state = optimizer.state[p]
                     if "momentum_buffer" not in param_state:
@@ -49,8 +46,13 @@ class SignSGDWorker(Worker):
         self.server.add_gradient(gradient)
         gradient = self.server.get_gradient()
         for group in optimizer.param_groups:
+            weight_decay = group["weight_decay"]
             for p in group["params"]:
                 if p.grad is None:
                     continue
-                p.grad = gradient.pop(0).to(device)
+                d_p = gradient.pop(0).to(device)
+
+                if weight_decay != 0:
+                    d_p = d_p.add(p, alpha=weight_decay)
+                p.add_(d_p, alpha=-group["lr"])
         assert not gradient

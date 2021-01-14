@@ -1,8 +1,8 @@
 from typing import List
 
 import torch
-from cyy_naive_lib.data_structure.process_task_queue import (ProcessTaskQueue,
-                                                             RepeatedResult)
+from cyy_naive_lib.data_structure.process_task_queue import ProcessTaskQueue
+from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 
 from server import Server
 
@@ -13,8 +13,7 @@ class SignSGDServer(Server):
         self.worker_number = worker_number
         self.sign_gradients: list = []
         self.gradients_queue = ProcessTaskQueue(
-            processor_fun=self.__processor, worker_num=1
-        )
+            worker_fun=self.__worker, worker_num=1)
 
     def stop(self):
         self.gradients_queue.stop()
@@ -25,7 +24,7 @@ class SignSGDServer(Server):
     def get_gradient(self) -> List[torch.Tensor]:
         return self.gradients_queue.get_result()
 
-    def __processor(self, sign_gradient: torch.Tensor, extra_args):
+    def __worker(self, sign_gradient: torch.Tensor, extra_args):
         self.sign_gradients.append(sign_gradient)
         if len(self.sign_gradients) != self.worker_number:
             return None
