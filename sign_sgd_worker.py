@@ -1,3 +1,5 @@
+import copy
+
 import torch
 from cyy_naive_pytorch_lib.trainer import Trainer
 from torch.optim.sgd import SGD
@@ -44,7 +46,7 @@ class SignSGDWorker(Worker):
                 d_p = torch.sign(d_p).detach().cpu()
                 gradient.append(d_p)
         self.server.add_gradient(gradient)
-        gradient = self.server.get_gradient()
+        gradient = copy.copy(self.server.get_gradient())
         for group in optimizer.param_groups:
             weight_decay = group["weight_decay"]
             for p in group["params"]:
