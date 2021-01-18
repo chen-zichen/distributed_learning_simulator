@@ -16,9 +16,10 @@ class FedQuantWorker(Worker):
         assert isinstance(trainer.get_optimizer(), SGD)
         self.local_epoch = kwargs.get("local_epoch")
         parameter_size = self.__get_parameter_list().shape[0]
-        self.parameter_names = list(
-            sorted(ModelUtil(self.trainer.model).get_parameter_dict().keys())
-        )
+        # self.parameter_names = list(
+        #     sorted(ModelUtil(self.trainer.model).get_parameter_dict().keys())
+        # )
+        print("parameter_size is ", parameter_size)
         self.trainer.set_model(
             QuantedModel(self.trainer.model, QuantModel(in_features=parameter_size))
         )
@@ -35,7 +36,5 @@ class FedQuantWorker(Worker):
         get_logger().info("aggregate parameters at epoch %s", epoch)
         self.server.add_parameter(self.__get_parameter_list())
         parameter_list = copy.deepcopy(self.server.get_parameter_list())
-        ModelUtil(trainer.model).load_parameter_dict(
-            dict(zip(self.parameter_names, parameter_list))
-        )
+        ModelUtil(trainer.model).load_parameter_list(parameter_list)
         get_logger().info("finish aggregating parameters at epoch %s", epoch)
