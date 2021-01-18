@@ -19,7 +19,8 @@ class SignSGDWorker(Worker):
         )
 
     @torch.no_grad()
-    def __get_gredient(self, trainer, optimizer, device):
+    def __get_gredient(self, optimizer, **kwargs):
+        device = kwargs.get("device")
         gradient = list()
         for group in optimizer.param_groups:
             momentum = group["momentum"]
