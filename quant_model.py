@@ -1,55 +1,39 @@
 import torch
-import torch.nn as nn
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 
 
-class QuantModel(nn.Module):
+class QuantModel(torch.nn.Module):
     def __init__(self, in_features):
         super().__init__()
         self.hidden_features = 100
-        self.linear1 = nn.Linear(
+        self.linear1 = torch.nn.Linear(
             in_features=in_features, out_features=self.hidden_features, bias=True
         )
-        self.linear2 = nn.Linear(
+        self.relu1 = torch.nn.ReLU()
+        self.linear2 = torch.nn.Linear(
             in_features=self.hidden_features, out_features=in_features, bias=True
         )
+        self.relu2 = torch.nn.ReLU()
+        self.quant = torch.quantization.QuantStub()
 
     def forward(self, x):
         x = self.linear1(x)
-        x = torch.tanh(x)
+        x = self.relu1(x)
         x = self.linear2(x)
-        x = torch.tanh(x)
-        return torch.quantize_per_tensor(x, 0.1, 10, torch.quint8)
+        x = self.relu2(x)
+        x = self.quant(x)
+        return x
 
 
-class local_grad(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, i):
-        return i
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output.clamp_(-1, 1)
-
-
-class QuantedModel(nn.Module):
+class QuantedModel(torch.nn.Module):
     def __init__(self, parameter_model, quant_model):
         super().__init__()
         self.parameter_model = parameter_model
-        self.quant_model = quant_model
-        self.parameter_names = sorted(
-            ModelUtil(parameter_model).get_parameter_dict().keys()
-        )
-        print(self.parameter_names)
+        # self.quant_model = quant_model
 
     def forward(self, x):
-        quanted_parameters = self.quant_model(
-            ModelUtil(self.parameter_model).get_parameter_list()
-        ).int_repr()
-
-        print(quanted_parameters.shape)
-        quanted_parameters = local_grad.apply(quanted_parameters)
-        print(quanted_parameters.shape)
-
-        ModelUtil(self.parameter_model).load_parameter_list(quanted_parameters)
+        # quanted_parameters = self.quant_model(
+        #     ModelUtil(self.parameter_model).get_parameter_list()
+        # )
+        # ModelUtil(self.parameter_model).load_parameter_list(quanted_parameters)
         return self.parameter_model(x)
