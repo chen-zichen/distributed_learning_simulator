@@ -58,47 +58,37 @@ class FedQuantWorker(Worker):
 
         trainer.model.eval()
         trainer.model.cpu()
-        get_logger().info(trainer.model)
 
         quantized_model: torch.nn.Module = torch.quantization.convert(trainer.model)
-
-        trainer.set_model(quantized_model)
-        trainer.train(device=get_cpu_device())
-        sys.exit(0)
         state_dict = quantized_model.state_dict()
+        print(state_dict)
+        sys.exit(0)
 
-        model_util = ModelUtil(trainer.model)
+        # device = kwargs.get("device")
+
+        # model_util = ModelUtil(self.original_model)
         for k in state_dict.keys():
-            # if k.startswith("quant."):
-            #     continue
             v = state_dict[k]
             if not isinstance(v, torch.Tensor):
                 continue
             if v.is_quantized:
-                get_logger().info("for quantization k=%s", k)
+                print(v)
                 v = v.int_repr().float()
-                print(v.shape)
-            else:
-                get_logger().info("for not quantization k=%s", k)
-
-            # if model_util.has_attr(k):
-            #     model_util.set_attr(k, v)
-            # # prefix = "module."
-            # # if k.startswith(prefix):
-            # #     k = k[len(prefix):]
-            # # get_logger().info(k)
-            # # if not model_util.has_attr(k):
+                state_dict[k] = v
+            # prefix = "module."
+            # if k.startswith(prefix):
+            #     k = k[len(prefix):]
+            # print(k)
+            # if not model_util.has_attr(k):
             #     continue
             # model_util.set_attr(k, v)
 
-        # quantized_model.load_state_dict(state_dict)
-        # trainer.set_model(quantized_model)
-        # device = kwargs.get("device")
-        sys.exit(0)
+        quantized_model.load_state_dict(state_dict)
+        trainer.set_model(quantized_model)
         res = trainer.get_inferencer(
             MachineLearningPhase.Test, copy_model=False
         ).inference(device=get_cpu_device())
-        get_logger().info(res)
+        print(res)
 
         sys.exit(0)
         return

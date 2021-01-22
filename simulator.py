@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser = get_arg_parser()
     parser.add_argument("--algorithm", type=str, required=True)
     parser.add_argument("--worker_number", type=int, required=True)
+    parser.add_argument("--local_epoch", type=int)
     args = get_parsed_args(parser=parser)
 
     set_file_handler(
@@ -24,8 +25,7 @@ if __name__ == "__main__":
             args.algorithm,
             args.dataset_name,
             args.model_name,
-            "{date:%Y-%m-%d_%H:%M:%S}.log".format(
-                date=datetime.datetime.now()),
+            "{date:%Y-%m-%d_%H:%M:%S}.log".format(date=datetime.datetime.now()),
         )
     )
 
@@ -37,7 +37,6 @@ if __name__ == "__main__":
     )
 
     devices = get_cuda_devices()
-    # worker_pool = ProcessPool()
     worker_pool = ThreadPool()
 
     for worker_id in range(args.worker_number):
@@ -46,9 +45,10 @@ if __name__ == "__main__":
         worker = get_worker(
             args.algorithm,
             trainer=worker_trainer,
-            server=server)
-        worker_pool.exec(worker.train,
-                         device=devices[worker_id % len(devices)])
+            server=server,
+            local_epoch=args.local_epoch,
+        )
+        worker_pool.exec(worker.train, device=devices[worker_id % len(devices)])
     get_logger().info("begin training")
     worker_pool.stop()
     get_logger().info("end training")

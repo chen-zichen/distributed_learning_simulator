@@ -3,7 +3,6 @@ from typing import List
 import torch
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
-from cyy_naive_pytorch_lib.tensor import cat_tensors_to_vector
 
 from server import Server
 
@@ -28,8 +27,33 @@ class FedQuantServer(Server):
         self.client_parameters.append(parameter)
         if len(self.client_parameters) != self.worker_number:
             return None
-        total_parameter = cat_tensors_to_vector(
-            [sum(i) / self.worker_number for i in zip(*self.client_parameters)]
-        )
+        if self.worker_number == 1:
+            return self.client_parameters[0]
+
+        assert self.worker_number > 1
+
+        total_parameter = self.client_parameters.pop(0)
+        assert len(self.client_parameters) == self.worker_number - 1
+
+        for k in total_parameter.keys():
+            v = total_parameter[k]
+            if isinstance(v, torch.Tensor):
+                for client_parameter in self.client_parameters:
+                    v += client_parameter[k]
+                v /= self.worker_number
+                continue
+            if isinstance(v, tuple):
+                v = tuple(
+                    [
+                        sum(x) / self.worker_number
+                        for x in zip(*([p[k] for p in self.client_parameters] + [v]))
+                    ]
+                )
+                continue
+            if isinstance(v, torch.dtype):
+                continue
+            print(type(v))
+            assert False
+
         self.client_parameters = []
         return RepeatedResult(data=total_parameter, num=self.worker_number)
