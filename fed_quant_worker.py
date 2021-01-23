@@ -9,9 +9,11 @@ from cyy_naive_pytorch_lib.inference import Inferencer
 from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.trainer import Trainer
+from torch.nn.quantized.modules.linear import Linear
 from torch.optim.sgd import SGD
 
 from fed_quant_server import FedQuantServer
+from quant_model import QuantedModel
 from worker import Worker
 
 
@@ -31,9 +33,10 @@ class FedQuantWorker(Worker):
         )
 
     def __prepare_quantization(self):
-        quant_model = torch.quantization.QuantWrapper(
-            copy.deepcopy(self.original_model)
-        )
+        # quant_model = torch.quantization.QuantWrapper(
+        #     copy.deepcopy(self.original_model)
+        # )
+        quant_model = QuantedModel(copy.deepcopy(self.original_model))
         quant_model.cpu()
         quant_model.qconfig = torch.quantization.get_default_qat_qconfig("fbgemm")
         torch.quantization.fuse_modules(
@@ -56,64 +59,89 @@ class FedQuantWorker(Worker):
         if epoch % self.local_epoch != 0:
             return
 
-        # for k, v in trainer.model.quant.named_buffers():
-        #     print("buffer k=", k)
-        #     print("buffer v=", v)
-
         trainer.model.cpu()
         trainer.model.eval()
-        quantized_model: torch.nn.Module = torch.quantization.convert(trainer.model)
-        get_logger().info("quantized_model is %s",quantized_model)
+        old_model = copy.deepcopy(trainer.model)
+        quantized_model: torch.nn.Module = torch.quantization.convert(
+            trainer.model, remove_qconfig=False
+        )
+
+        device = kwargs.get("device")
+        self.trainer.set_model(quantized_model)
+        res = self.trainer.get_inferencer(
+            MachineLearningPhase.Test, copy_model=False
+        ).inference(device=get_cpu_device())
+        get_logger().info("quantized_model result=%s", res)
 
         state_dict = quantized_model.state_dict()
+        quantized_model_util = ModelUtil(quantized_model)
+        self.trainer.set_model(copy.deepcopy(self.original_model))
+        model_util = ModelUtil(self.trainer.model)
+        for k in model_util.get_parameter_dict():
+            if not quantized_model_util.has_attr(k):
+                continue
+            v = quantized_model_util.get_attr(k)
+            if isinstance(v, torch.Tensor):
+                if v.is_quantized:
+                    v = v.int_repr().float()
+                model_util.set_attr(k, v)
+                get_logger().info("set value for k=%s", k)
+            else:
+                new_k = ".".join(k.split(".")[:-1])
+                v = quantized_model_util.get_attr(new_k)
+                if isinstance(v, Linear):
+                    get_logger().info("v is %s", v)
+                    weight, bias = v._packed_params._weight_bias()
+                    if weight.is_quantized:
+                        weight = weight.int_repr().float()
+                    else:
+                        weight = torch.quantize_per_tensor(
+                            weight, v.scale, v.zero_point, torch.qint8
+                        )
+                    get_logger().info(" weight is %s bias is %s", weight, bias)
+                    model_util.set_attr(new_k + ".weight", weight)
+                    model_util.set_attr(new_k + ".bias", bias)
+                    get_logger().info("set value for k=%s", k)
 
-        model_util = ModelUtil(self.original_model)
         for k in state_dict.keys():
             prefix = "module."
             if not k.startswith(prefix):
                 continue
             v = state_dict[k]
-            k = k[len(prefix):]
-            print("k=", k)
             if not isinstance(v, torch.Tensor):
                 continue
 
             if v.is_quantized:
                 v = v.int_repr().float()
-                # get_logger().info("for quantization k=%s", k)
-            # else:
-            # get_logger().info("for not quantization k=%s", k)
             if model_util.has_attr(k):
                 model_util.set_attr(k, v)
                 get_logger().info("set value for k=%s", k)
-            else:
-                get_logger().info("no value for k=%s", k)
 
-        self.__prepare_quantization()
-        model_util = ModelUtil(self.trainer.model)
-        device = kwargs.get("device")
+        old_quant_scale = None
+        old_quant_zero_point = None
+
         for k in state_dict.keys():
             print("k=", k)
             v = state_dict[k]
             if k == "quant.scale":
-                fake_quant = model_util.get_attr("quant.activation_post_process")
-                fake_quant.register_buffer("scale", v)
-                # get_logger().info("register scale %s", v)
-                continue
+                old_quant_scale = v
             if k == "quant.zero_point":
-                fake_quant = model_util.get_attr("quant.activation_post_process")
-                fake_quant.register_buffer("zero_point", v)
-                get_logger().info("register zero_point %s", v)
-                continue
+                old_quant_zero_point = v
 
+        scale = old_model.scale * old_quant_scale
+        zero_point = old_model.zero_point / old_quant_scale + old_quant_zero_point
+        self.trainer.model.register_buffer("scale", scale)
+        self.trainer.model.register_buffer("zero_point", zero_point)
+        get_logger().info("register scale and zero_point %s %s", scale, zero_point)
+
+        device = kwargs.get("device")
         res = self.trainer.get_inferencer(
             MachineLearningPhase.Test, copy_model=False
         ).inference(device=device)
-        get_logger().info("aaaaaaaaaaaaaaaaa=", res)
+        get_logger().info("aaaaaaaaaaaaaaaaa=%s", res)
         optimizer: torch.optim.Optimizer = kwargs.get("optimizer")
         optimizer.param_groups.clear()
         optimizer.add_param_group({"params": self.trainer.model.parameters()})
-
         return
 
         # self.__prepare_quantization()
