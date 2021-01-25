@@ -1,8 +1,8 @@
 from typing import List
 
-import torch
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
+from cyy_naive_lib.log import get_logger
 
 from server import Server
 
@@ -17,43 +17,30 @@ class FedQuantServer(Server):
     def stop(self):
         self.parameter_queue.stop()
 
-    def add_parameter(self, parameter: torch.Tensor):
+    def add_parameter_dict(self, parameter: dict):
         self.parameter_queue.add_task(parameter)
 
-    def get_parameter(self) -> List[torch.Tensor]:
+    def get_parameter_dict(self) -> List[dict]:
         return self.parameter_queue.get_result()
 
-    def __worker(self, parameter: torch.Tensor, extra_args):
-        self.client_parameters.append(parameter)
+    def __worker(self, parameter_dict: dict, extra_args):
+        self.client_parameters.append(parameter_dict)
         if len(self.client_parameters) != self.worker_number:
+            get_logger().info(
+                "%s %s,skip", len(self.client_parameters), self.worker_number
+            )
             return None
+        get_logger().info("begin aggregating")
         if self.worker_number == 1:
             return self.client_parameters[0]
 
-        assert self.worker_number > 1
-
-        total_parameter = self.client_parameters.pop(0)
-        assert len(self.client_parameters) == self.worker_number - 1
-
-        for k in total_parameter.keys():
-            v = total_parameter[k]
-            if isinstance(v, torch.Tensor):
-                for client_parameter in self.client_parameters:
-                    v += client_parameter[k]
-                v /= self.worker_number
-                continue
-            if isinstance(v, tuple):
-                v = tuple(
-                    [
-                        sum(x) / self.worker_number
-                        for x in zip(*([p[k] for p in self.client_parameters] + [v]))
-                    ]
-                )
-                continue
-            if isinstance(v, torch.dtype):
-                continue
-            print(type(v))
-            assert False
+        total_parameter: dict = dict()
+        for k in self.client_parameters[0]:
+            get_logger().info("process %s", k)
+            total_parameter[k] = (
+                sum([p[k] for p in self.client_parameters]) / self.worker_number
+            )
 
         self.client_parameters = []
+        get_logger().info("end aggregating %s", total_parameter)
         return RepeatedResult(data=total_parameter, num=self.worker_number)

@@ -92,11 +92,12 @@ class FedQuantWorker(Worker):
             if not quantized_model_util.has_attr(module_name):
                 continue
             sub_module = quantized_model_util.get_attr(module_name)
-            get_logger().info("sub_module type is %s", type(sub_module))
+            # get_logger().info("sub_module type is %s", type(sub_module))
             if isinstance(sub_module, ConvReLU2d):
                 weight, bias = sub_module._weight_bias()
                 assert weight.is_quantized
-                weight = weight.int_repr().float()
+                weight = weight.int_repr().float().detach()
+                bias = bias.detach()
                 processed_modules.add(module_name)
                 module_name = module_name[len("module."):]
                 # get_logger().info("conv_relu2d weight is %s", weight)
@@ -113,7 +114,8 @@ class FedQuantWorker(Worker):
             if isinstance(sub_module, Linear):
                 weight, bias = sub_module._packed_params._weight_bias()
                 assert weight.is_quantized
-                weight = weight.int_repr().float()
+                weight = weight.int_repr().float().detach()
+                bias = bias.detach()
                 processed_modules.add(module_name)
                 # get_logger().info(" weight is %s bias is %s", weight, bias)
                 module_name = module_name[len("module."):]
@@ -123,13 +125,19 @@ class FedQuantWorker(Worker):
                 model_util.set_attr(module_name + ".bias", bias)
                 # get_logger().info( "set value for %s weight=%s bias =%s", module_name, weight, bias)
                 continue
+
+        get_logger().info("aggregate parameters at epoch %s", epoch)
+        self.server.add_parameter_dict(parameter_dict)
+        parameter_dict = copy.deepcopy(self.server.get_parameter_dict())
+        model_util.load_parameter_dict(parameter_dict, check_parameter=True)
+
         self.__prepare_quantization()
 
         scale = old_model.scale * old_quant_scale
         zero_point = old_model.zero_point / old_quant_scale + old_quant_zero_point
         self.trainer.model.register_buffer("scale", scale)
         self.trainer.model.register_buffer("zero_point", zero_point)
-        get_logger().info("register scale and zero_point %s %s", scale, zero_point)
+        # get_logger().info("register scale and zero_point %s %s", scale, zero_point)
 
         device = kwargs.get("device")
         res = self.trainer.get_inferencer(
@@ -144,8 +152,5 @@ class FedQuantWorker(Worker):
         # self.__prepare_quantization()
         # self.trainer.set_model(self.original_model)
 
-        # get_logger().info("aggregate parameters at epoch %s", epoch)
-        # self.server.add_parameter(model_util.get_parameter_list())
-        # parameter_list = copy.deepcopy(self.server.get_parameter_list())
         # ModelUtil(trainer.model).load_parameter_list(parameter_list)
         # get_logger().info("finish aggregating parameters at epoch %s", epoch)
