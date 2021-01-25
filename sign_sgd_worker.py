@@ -34,8 +34,7 @@ class SignSGDWorker(Worker):
                 if momentum != 0:
                     param_state = optimizer.state[p]
                     if "momentum_buffer" not in param_state:
-                        buf = param_state["momentum_buffer"] = torch.clone(
-                            d_p).detach()
+                        buf = param_state["momentum_buffer"] = torch.clone(d_p).detach()
                     else:
                         buf = param_state["momentum_buffer"]
                         buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
