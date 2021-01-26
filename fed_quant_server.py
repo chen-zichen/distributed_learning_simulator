@@ -38,7 +38,7 @@ class FedQuantServer(Server):
         for k in self.client_parameters[0]:
             get_logger().info("process %s", k)
             total_parameter[k] = (
-                sum([p[k] for p in self.client_parameters]) / self.worker_number
+                sum([p[k].float() for p in self.client_parameters]) / self.worker_number
             )
 
         self.client_parameters = []

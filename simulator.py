@@ -2,7 +2,7 @@ import copy
 import datetime
 import os
 
-# from cyy_naive_lib.data_structure.process_pool import ProcessPool
+from cyy_naive_lib.data_structure.process_pool import ProcessPool
 from cyy_naive_lib.data_structure.thread_pool import ThreadPool
 from cyy_naive_lib.log import get_logger, set_file_handler
 from cyy_naive_pytorch_lib.arg_parse import (create_trainer_from_args,
@@ -18,6 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--worker_number", type=int, required=True)
     parser.add_argument("--local_epoch", type=int)
     args = get_parsed_args(parser=parser)
+    ProcessPool().exec(lambda: "1")
 
     set_file_handler(
         os.path.join(
@@ -40,6 +41,7 @@ if __name__ == "__main__":
     worker_pool = ThreadPool()
 
     for worker_id in range(args.worker_number):
+        print("worker_id is ", worker_id)
         worker_trainer = copy.deepcopy(trainer)
         worker_trainer.set_training_dataset(training_datasets[worker_id])
         worker = get_worker(
