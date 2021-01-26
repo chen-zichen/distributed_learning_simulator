@@ -34,6 +34,15 @@ class FedQuantServer(Server):
         if self.worker_number == 1:
             return self.client_parameters[0]
 
+        for idx, parameter_dict in enumerate(self.client_parameters):
+            for k, v in parameter_dict.items():
+                if isinstance(v, tuple):
+                    (weight, scale, zero_point) = v
+                    weight = weight.float()
+                    for idx2, v2 in enumerate(weight):
+                        weight[idx2] = (v2 - zero_point[idx2]) * scale[idx2]
+                    self.client_parameters[idx][k] = weight
+
         total_parameter: dict = dict()
         for k in self.client_parameters[0]:
             get_logger().info("process %s", k)
