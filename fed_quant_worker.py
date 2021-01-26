@@ -9,7 +9,7 @@ from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.trainer import Trainer
 from torch.nn.intrinsic.quantized.modules.conv_relu import ConvReLU2d
 from torch.nn.quantized.modules.linear import Linear
-from torch.optim.sgd import SGD
+# from torch.optim.sgd import SGD
 
 from fed_quant_server import FedQuantServer
 from quant_model import QuantedModel
@@ -19,7 +19,6 @@ from worker import Worker
 class FedQuantWorker(Worker):
     def __init__(self, trainer: Trainer, server: FedQuantServer, **kwargs):
         super().__init__(trainer, server)
-        assert isinstance(trainer.get_optimizer(), SGD)
 
         self.local_epoch = kwargs.get("local_epoch")
         assert self.local_epoch
@@ -84,9 +83,9 @@ class FedQuantWorker(Worker):
                 zero_point = weight.q_per_channel_zero_points()
                 weight = weight.detach().int_repr()
                 bias = bias.detach()
-                parameter_dict[module_name + ".weight"] = weight
-                parameter_dict[module_name + ".weight.scale"] = scale
-                parameter_dict[module_name + ".weight.zero_point"] = zero_point
+                parameter_dict[module_name + ".weight"] = (weight, scale, zero_point)
+                # parameter_dict[module_name + ".weight.scale"] = scale
+                # parameter_dict[module_name + ".weight.zero_point"] = zero_point
                 parameter_dict[module_name + ".bias"] = bias
                 processed_modules.add(module_name)
                 continue
@@ -115,11 +114,11 @@ class FedQuantWorker(Worker):
             if isinstance(sub_module, (ConvReLU2d, Linear)):
                 processed_modules.add(module_name)
                 weight = parameter_dict[module_name + ".weight"]
-                weight = weight.float()
-                scale = parameter_dict[module_name + ".weight.scale"]
-                zero_point = parameter_dict[module_name + ".weight.zero_point"]
-                for idx, v in enumerate(weight):
-                    weight[idx] = (v - zero_point[idx]) * scale[idx]
+                # weight = weight.float()
+                # scale = parameter_dict[module_name + ".weight.scale"]
+                # zero_point = parameter_dict[module_name + ".weight.zero_point"]
+                # for idx, v in enumerate(weight):
+                #     weight[idx] = (v - zero_point[idx]) * scale[idx]
 
                 model_util.set_attr(module_name + ".weight", weight)
                 model_util.set_attr(
