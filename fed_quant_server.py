@@ -31,25 +31,36 @@ class FedQuantServer(Server):
             )
             return None
         get_logger().info("begin aggregating")
-        if self.worker_number == 1:
-            return self.client_parameters[0]
 
         for idx, parameter_dict in enumerate(self.client_parameters):
             for k, v in parameter_dict.items():
                 if isinstance(v, tuple):
                     (weight, scale, zero_point) = v
-                    weight = weight.float()
-                    for idx2, v2 in enumerate(weight):
-                        weight[idx2] = (v2 - zero_point[idx2]) * scale[idx2]
-                    self.client_parameters[idx][k] = weight
+                    parameter_dict[k] = (
+                        weight.float(),
+                        scale.float(),
+                        zero_point.float(),
+                    )
+                    get_logger().error("client %s %s scale is %s", idx, k, scale)
 
         total_parameter: dict = dict()
-        for k in self.client_parameters[0]:
-            get_logger().info("process %s", k)
-            total_parameter[k] = (
-                sum([p[k].float() for p in self.client_parameters]) / self.worker_number
-            )
+        for k, v in self.client_parameters[0].items():
+            if isinstance(v, tuple):
+                total_parameter[k] = tuple(
+                    map(sum, zip(*[p[k] for p in self.client_parameters]))
+                )
+                assert len(total_parameter[k]) == 3
+                (weight, scale, zero_point) = total_parameter[k]
+                weight /= self.worker_number
+                zero_point /= self.worker_number
+                scale /= self.worker_number
+                total_parameter[k] = (weight, scale, zero_point)
+            else:
+                total_parameter[k] = (
+                    sum([p[k].float() for p in self.client_parameters])
+                    / self.worker_number
+                )
 
         self.client_parameters = []
-        get_logger().info("end aggregating %s", total_parameter)
+        get_logger().info("end aggregating")
         return RepeatedResult(data=total_parameter, num=self.worker_number)
