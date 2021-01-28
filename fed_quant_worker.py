@@ -72,20 +72,28 @@ class FedQuantWorker(Worker):
         return list_of_list
 
     def __prepare_quantization(self):
-        quant_model = torch.quantization.QuantWrapper(
-            copy.deepcopy(self.original_model)
-        )
+        if ModelUtil(self.original_model).has_sub_module(torch.quantization.QuantStub):
+            quant_model = copy.deepcopy(self.original_model)
+        else:
+            quant_model = torch.quantization.QuantWrapper(
+                copy.deepcopy(self.original_model)
+            )
         quant_model.cpu()
         quant_model.qconfig = torch.quantization.get_default_qat_qconfig("fbgemm")
         get_logger().debug("quant_model is %s", quant_model)
-        torch.quantization.fuse_modules(
-            quant_model,
-            self.__get_fused_modules(quant_model),
-            fuse_custom_config_dict={
-                "additional_fuser_method_mapping": self.additional_fuser_method_mapping
-            },
-            inplace=True,
-        )
+
+        if hasattr(quant_model, "fuse_model"):
+            get_logger().debug("use fuse_model")
+            quant_model.fuse_model()
+        else:
+            torch.quantization.fuse_modules(
+                quant_model,
+                self.__get_fused_modules(quant_model),
+                fuse_custom_config_dict={
+                    "additional_fuser_method_mapping": self.additional_fuser_method_mapping
+                },
+                inplace=True,
+            )
         torch.quantization.prepare_qat(quant_model, inplace=True)
         self.trainer.set_model(quant_model)
 
