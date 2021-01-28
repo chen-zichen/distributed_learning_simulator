@@ -36,22 +36,35 @@ class FedQuantServer(Server):
             for k, v in parameter_dict.items():
                 if isinstance(v, tuple):
                     (weight, scale, zero_point) = v
-                    parameter_dict[k] = (
-                        weight.float(),
-                        scale.float(),
-                        zero_point.float(),
-                    )
-                    get_logger().error("client %s %s scale is %s", idx, k, scale)
+                    weight = weight.float()
+                    for idx, v in enumerate(weight):
+                        weight[idx] = (v - zero_point[idx]) * scale[idx]
+                    parameter_dict[k] = weight
+
+                    # parameter_dict[k] = (
+                    #     weight.float(),
+                    #     scale.float(),
+                    #     zero_point.float(),
+                    # )
+                    # get_logger().error("client %s %s scale is %s", idx, k, scale)
 
         total_parameter: dict = dict()
         for k, v in self.client_parameters[0].items():
             if isinstance(v, tuple):
+                (weight, scale, zero_point) = v
+                get_logger().error("before weight %s client 0 is %s", k, weight)
+                get_logger().error(
+                    "before weight %s client 1 is %s",
+                    k,
+                    self.client_parameters[1][k][0],
+                )
                 total_parameter[k] = tuple(
                     map(sum, zip(*[p[k] for p in self.client_parameters]))
                 )
                 assert len(total_parameter[k]) == 3
                 (weight, scale, zero_point) = total_parameter[k]
                 weight /= self.worker_number
+                get_logger().error("after weight %s is %s", k, weight)
                 zero_point /= self.worker_number
                 scale /= self.worker_number
                 total_parameter[k] = (weight, scale, zero_point)

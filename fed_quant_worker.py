@@ -6,8 +6,7 @@ from cyy_naive_pytorch_lib.device import get_cpu_device
 from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.trainer import Trainer
-from torch.quantization.fuser_method_mappings import \
-    DEFAULT_OP_LIST_TO_FUSER_METHOD
+from torch.quantization.fuser_method_mappings import OP_LIST_TO_FUSER_METHOD
 
 from fed_quant_server import FedQuantServer
 # from quant_model import QuantedModel
@@ -22,9 +21,9 @@ class FedQuantWorker(Worker):
         assert self.local_epoch
         self.original_model = trainer.model
         self.quantized_model = None
-        self.additional_fuser_method_mapping = copy.deepcopy(
-            DEFAULT_OP_LIST_TO_FUSER_METHOD
-        )
+        # self.additional_fuser_method_mapping = copy.deepcopy(
+        #     DEFAULT_OP_LIST_TO_FUSER_METHOD
+        # )
         # # change ReLU6 to ReLU
         # ModelUtil(self.original_model).change_sub_modules(
         #     torch.nn.modules.activation.ReLU6,
@@ -44,7 +43,7 @@ class FedQuantWorker(Worker):
         list_of_list = []
         i = 0
         while i < len(modules):
-            candidates: set = set(self.additional_fuser_method_mapping.keys())
+            candidates: set = set(OP_LIST_TO_FUSER_METHOD.keys())
             j = i
             end_index = None
             while j < len(modules):
@@ -89,9 +88,6 @@ class FedQuantWorker(Worker):
             torch.quantization.fuse_modules(
                 quant_model,
                 self.__get_fused_modules(quant_model),
-                fuse_custom_config_dict={
-                    "additional_fuser_method_mapping": self.additional_fuser_method_mapping
-                },
                 inplace=True,
             )
         torch.quantization.prepare_qat(quant_model, inplace=True)
