@@ -21,16 +21,13 @@ class FedQuantWorker(Worker):
         assert self.local_epoch
         self.original_model = trainer.model
         self.quantized_model = None
-        # self.additional_fuser_method_mapping = copy.deepcopy(
-        #     DEFAULT_OP_LIST_TO_FUSER_METHOD
-        # )
         # # change ReLU6 to ReLU
-        # ModelUtil(self.original_model).change_sub_modules(
-        #     torch.nn.modules.activation.ReLU6,
-        #     lambda name, sub_module: torch.nn.modules.activation.ReLU(
-        #         inplace=sub_module.inplace
-        #     ),
-        # )
+        ModelUtil(self.original_model).change_sub_modules(
+            torch.nn.modules.activation.ReLU6,
+            lambda name, sub_module: torch.nn.modules.activation.ReLU(
+                inplace=sub_module.inplace
+            ),
+        )
         get_logger().debug("model is %s", self.original_model)
 
     def train(self, device):
@@ -102,11 +99,13 @@ class FedQuantWorker(Worker):
 
     def __get_quantized_parameters(self) -> dict:
         quantized_model = self.__get_quantized_model()
+        # get_logger().info("quantized_model  is %s", quantized_model)
         processed_modules = set()
         state_dict = quantized_model.state_dict()
         quantized_model_util = ModelUtil(quantized_model)
         parameter_dict: dict = dict()
         for k in state_dict:
+            # get_logger().info("k is %s", k)
             if k in ("scale", "zero_point", "quant.scale", "quant.zero_point"):
                 continue
             if "." not in k:
@@ -118,7 +117,8 @@ class FedQuantWorker(Worker):
             if not quantized_model_util.has_attr(module_name):
                 continue
             sub_module = quantized_model_util.get_attr(module_name)
-            module_name = module_name[len("module."):]
+            if module_name.startswith("module."):
+                module_name = module_name[len("module."):]
             if isinstance(
                 sub_module,
                 (
@@ -132,19 +132,36 @@ class FedQuantWorker(Worker):
                 scale = weight.q_per_channel_scales()
                 zero_point = weight.q_per_channel_zero_points()
                 weight = weight.detach().int_repr()
-                bias = bias.detach()
                 parameter_dict[module_name + ".weight"] = (weight, scale, zero_point)
-                # parameter_dict[module_name + ".weight.scale"] = scale
-                # parameter_dict[module_name + ".weight.zero_point"] = zero_point
+                if bias is not None:
+                    bias = bias.detach()
+                    parameter_dict[module_name + ".bias"] = bias
+                processed_modules.add(module_name)
+                continue
+            if isinstance(
+                sub_module,
+                (torch.nn.quantized.modules.batchnorm.BatchNorm2d),
+            ):
+                get_logger().info("batchnorm2d k is %s", k)
+                weight = sub_module.weight.detach()
+                assert not weight.is_quantized
+                bias = sub_module.bias.detach()
+                assert not bias.is_quantized
+                running_mean = sub_module.running_mean.detach()
+                assert not running_mean.is_quantized
+                running_var = sub_module.running_var.detach()
+                assert not running_var.is_quantized
+
+                parameter_dict[module_name + ".weight"] = weight
                 parameter_dict[module_name + ".bias"] = bias
+                parameter_dict[module_name + ".running_mean"] = running_mean
+                parameter_dict[module_name + ".running_var"] = running_var
                 processed_modules.add(module_name)
                 continue
             get_logger().warning("unsupported sub_module type %s", type(sub_module))
 
-        # for name, parameter in quantized_model_util.get_parameter_dict():
-        #     if name not in parameter_dict:
-        #         get_logger().info("lack parameter %s %s", name, parameter)
-        #         parameter_dict[name] = parameter
+        for n, _ in quantized_model_util.get_parameter_dict().items():
+            get_logger().info("quantized_model key is %s", n)
         return parameter_dict
 
     def __load_quantized_parameters(self, parameter_dict: dict) -> dict:
@@ -152,7 +169,18 @@ class FedQuantWorker(Worker):
         quantized_model = self.__get_quantized_model()
         processed_modules = set()
         state_dict = quantized_model.state_dict()
+        # get_logger().info("state_dict is %s", state_dict)
         quantized_model_util = ModelUtil(quantized_model)
+        for name, module in self.original_model.named_modules():
+            get_logger().info("aaaaaaaaaaa %s  %s ", name, type(module))
+            if isinstance(module, torch.nn.modules.BatchNorm2d):
+                get_logger().info("set batchnorm  of %s ", name)
+                torch.nn.init.ones_(module.weight)
+                torch.nn.init.zeros_(module.bias)
+                torch.nn.init.zeros_(module.running_mean)
+                torch.nn.init.ones_(module.running_var)
+                module.eps = 0
+
         for k in state_dict:
             if k in ("scale", "zero_point", "quant.scale", "quant.zero_point"):
                 continue
@@ -164,13 +192,15 @@ class FedQuantWorker(Worker):
             if not quantized_model_util.has_attr(module_name):
                 continue
             sub_module = quantized_model_util.get_attr(module_name)
-            module_name = module_name[len("module."):]
+            if module_name.startswith("module."):
+                module_name = module_name[len("module."):]
             if isinstance(
                 sub_module,
                 (
                     torch.nn.intrinsic.quantized.modules.conv_relu.ConvReLU2d,
                     torch.nn.quantized.modules.linear.Linear,
                     torch.nn.quantized.modules.conv.Conv2d,
+                    torch.nn.quantized.modules.batchnorm.BatchNorm2d,
                 ),
             ):
                 processed_modules.add(module_name)
@@ -180,13 +210,15 @@ class FedQuantWorker(Worker):
                     weight = weight.float()
                     for idx, v in enumerate(weight):
                         weight[idx] = (v - zero_point[idx]) * scale[idx]
-
                 model_util.set_attr(module_name + ".weight", weight)
-                model_util.set_attr(
-                    module_name + ".bias", parameter_dict[module_name + ".bias"]
-                )
-                continue
 
+                for suffix in [".bias", ".running_mean", ".running_var"]:
+                    attr_name = module_name + suffix
+                    if attr_name in parameter_dict:
+                        model_util.set_attr(attr_name, parameter_dict[attr_name])
+                continue
+            get_logger().warning("unsupported sub_module type %s", type(sub_module))
+            # raise RuntimeError("unsupported sub_module type " + str(type(sub_module)))
         return parameter_dict
 
     def __send_parameters(self, trainer: Trainer, epoch, **kwargs):
@@ -194,15 +226,15 @@ class FedQuantWorker(Worker):
             return
 
         parameter_dict = self.__get_quantized_parameters()
-        self.trainer.set_model(self.quantized_model)
+        # self.trainer.set_model(self.quantized_model)
 
-        inferencer = self.trainer.get_inferencer(
-            MachineLearningPhase.Test, copy_model=False
-        )
-        inferencer.set_device(get_cpu_device())
+        # inferencer = self.trainer.get_inferencer(
+        #     MachineLearningPhase.Test, copy_model=False
+        # )
+        # inferencer.set_device(get_cpu_device())
 
-        res = inferencer.inference()
-        get_logger().info("quantized res is %s", res)
+        # res = inferencer.inference()
+        # get_logger().info("quantized res is %s", res)
 
         get_logger().debug("quantized_model is %s", self.quantized_model)
 
@@ -215,12 +247,8 @@ class FedQuantWorker(Worker):
             MachineLearningPhase.Test, copy_model=False
         )
         inferencer.set_device(get_cpu_device())
-
         res = inferencer.inference()
 
-        # res = self.trainer.get_inferencer(
-        #     MachineLearningPhase.Test, copy_model=False
-        # ).inference()
         get_logger().info("after aggregating res is %s", res)
         optimizer: torch.optim.Optimizer = kwargs.get("optimizer")
         optimizer.param_groups.clear()
