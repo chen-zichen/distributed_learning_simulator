@@ -171,15 +171,15 @@ class FedQuantWorker(Worker):
         state_dict = quantized_model.state_dict()
         # get_logger().info("state_dict is %s", state_dict)
         quantized_model_util = ModelUtil(quantized_model)
+        # get_logger().info("aaaaaaaaaaa %s  %s ", name, type(module))
         for name, module in self.original_model.named_modules():
-            get_logger().info("aaaaaaaaaaa %s  %s ", name, type(module))
             if isinstance(module, torch.nn.modules.BatchNorm2d):
-                get_logger().info("set batchnorm  of %s ", name)
+                # get_logger().info("set batchnorm  of %s ", name)
                 torch.nn.init.ones_(module.weight)
                 torch.nn.init.zeros_(module.bias)
                 torch.nn.init.zeros_(module.running_mean)
                 torch.nn.init.ones_(module.running_var)
-                module.eps = 0
+                # module.eps = 0
 
         for k in state_dict:
             if k in ("scale", "zero_point", "quant.scale", "quant.zero_point"):
@@ -212,7 +212,8 @@ class FedQuantWorker(Worker):
                         weight[idx] = (v - zero_point[idx]) * scale[idx]
                 model_util.set_attr(module_name + ".weight", weight)
 
-                for suffix in [".bias", ".running_mean", ".running_var"]:
+                # for suffix in [".bias", ".running_mean", ".running_var"]:
+                for suffix in [".bias"]:
                     attr_name = module_name + suffix
                     if attr_name in parameter_dict:
                         model_util.set_attr(attr_name, parameter_dict[attr_name])

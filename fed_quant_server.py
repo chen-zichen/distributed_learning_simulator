@@ -40,7 +40,6 @@ class FedQuantServer(Server):
                     for idx, v in enumerate(weight):
                         weight[idx] = (v - zero_point[idx]) * scale[idx]
                     parameter_dict[k] = weight
-
                     # parameter_dict[k] = (
                     #     weight.float(),
                     #     scale.float(),
