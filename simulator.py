@@ -43,7 +43,6 @@ if __name__ == "__main__":
     worker_pool = ThreadPool()
 
     for worker_id in range(args.worker_number):
-        print("worker_id is ", worker_id)
         worker_trainer = copy.deepcopy(trainer)
         worker_trainer.set_training_dataset(training_datasets[worker_id])
         worker = get_worker(
