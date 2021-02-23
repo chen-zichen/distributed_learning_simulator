@@ -10,6 +10,7 @@ from cyy_naive_pytorch_lib.arg_parse import (affect_global_process_from_args,
                                              get_arg_parser, get_parsed_args)
 from cyy_naive_pytorch_lib.dataset import DatasetUtil
 from cyy_naive_pytorch_lib.device import get_cuda_devices
+from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase
 
 from factory import get_server, get_worker
 
@@ -43,15 +44,22 @@ if __name__ == "__main__":
     worker_pool = ThreadPool()
 
     for worker_id in range(args.worker_number):
+        get_logger().info("create worker %s", worker_id)
         worker_trainer = copy.deepcopy(trainer)
-        worker_trainer.set_training_dataset(training_datasets[worker_id])
+
+        worker_trainer.dataset_collection.transform_dataset(
+            MachineLearningPhase.Training,
+            lambda old_dataset: training_datasets[worker_id],
+        )
         worker = get_worker(
             args.algorithm,
             trainer=worker_trainer,
             server=server,
             local_epoch=args.local_epoch,
         )
-        worker_pool.exec(worker.train, device=devices[worker_id % len(devices)])
+        worker_pool.exec(
+            worker.train, device=devices[worker_id % len(devices)], worker_id=worker_id
+        )
     get_logger().info("begin training")
     worker_pool.stop()
     get_logger().info("end training")

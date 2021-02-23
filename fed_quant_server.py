@@ -1,8 +1,12 @@
-from typing import List
+from typing import List, Optional
 
+from cyy_naive_lib.algorithm.mapping_op import get_mapping_values_by_order
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 from cyy_naive_lib.log import get_logger
+from cyy_naive_pytorch_lib.algorithm.quantization.scheme import \
+    stochastic_quantization
+from cyy_naive_pytorch_lib.tensor import TensorUtil
 
 from server import Server
 
@@ -11,68 +15,60 @@ class FedQuantServer(Server):
     def __init__(self, worker_number: int):
         super().__init__()
         self.worker_number = worker_number
-        self.client_parameters: list = []
+        self.joined_clients = 0
+        self.sum_parameter: Optional[dict] = None
+        self.parameter = None
         self.parameter_queue = ThreadTaskQueue(worker_fun=self.__worker, worker_num=1)
 
     def stop(self):
         self.parameter_queue.stop()
 
     def add_parameter_dict(self, parameter: dict):
+        self.parameter = parameter
         self.parameter_queue.add_task(parameter)
 
-    def get_parameter_dict(self) -> List[dict]:
-        return self.parameter_queue.get_result()
+    def get_parameter_dict(self):
+        quantized_pair, dequant = self.parameter_queue.get_result()
+        tensor_util = TensorUtil(self.parameter)
+        tensor_util.load_dict_values(dequant(quantized_pair))
+        return tensor_util.data
 
-    def __worker(self, parameter_dict: dict, extra_args):
-        self.client_parameters.append(parameter_dict)
-        if len(self.client_parameters) != self.worker_number:
-            get_logger().info(
-                "%s %s,skip", len(self.client_parameters), self.worker_number
-            )
-            return None
-        get_logger().info("begin aggregating")
+    def __worker(self, parameter_dict: dict, __):
+        self.joined_clients += 1
 
-        for idx, parameter_dict in enumerate(self.client_parameters):
-            for k, v in parameter_dict.items():
-                if isinstance(v, tuple):
-                    (weight, scale, zero_point) = v
-                    weight = weight.float()
-                    for idx, v in enumerate(weight):
-                        weight[idx] = (v - zero_point[idx]) * scale[idx]
-                    parameter_dict[k] = weight
-                    # parameter_dict[k] = (
-                    #     weight.float(),
-                    #     scale.float(),
-                    #     zero_point.float(),
-                    # )
-                    # get_logger().error("client %s %s scale is %s", idx, k, scale)
-
-        total_parameter: dict = dict()
-        for k, v in self.client_parameters[0].items():
+        for k, v in parameter_dict.items():
             if isinstance(v, tuple):
                 (weight, scale, zero_point) = v
-                get_logger().error("before weight %s client 0 is %s", k, weight)
-                get_logger().error(
-                    "before weight %s client 1 is %s",
-                    k,
-                    self.client_parameters[1][k][0],
-                )
-                total_parameter[k] = tuple(
-                    map(sum, zip(*[p[k] for p in self.client_parameters]))
-                )
-                assert len(total_parameter[k]) == 3
-                (weight, scale, zero_point) = total_parameter[k]
-                weight /= self.worker_number
-                get_logger().error("after weight %s is %s", k, weight)
-                zero_point /= self.worker_number
-                scale /= self.worker_number
-                total_parameter[k] = (weight, scale, zero_point)
-            else:
-                total_parameter[k] = (
-                    sum([p[k].float() for p in self.client_parameters])
-                    / self.worker_number
-                )
+                weight = weight.float()
+                for idx, v in enumerate(weight):
+                    weight[idx] = (v - zero_point[idx]) * scale[idx]
+                parameter_dict[k] = weight
 
-        self.client_parameters = []
+        if self.sum_parameter is None:
+            self.sum_parameter = parameter_dict
+        else:
+            for k, v in self.sum_parameter.items():
+                self.sum_parameter[k] += parameter_dict[k]
+
+        if self.joined_clients != self.worker_number:
+            get_logger().info("%s %s,skip", self.joined_clients, self.worker_number)
+            return None
+        self.joined_clients = 0
+        get_logger().info("begin aggregating")
+
+        sum_parameter = self.sum_parameter
+        self.sum_parameter = None
+        for k, v in sum_parameter.items():
+            sum_parameter[k] = v / self.worker_number
+
+        get_logger().info("begin quantization")
+        tensor_util = TensorUtil(sum_parameter)
+        quant, dequant = stochastic_quantization(256)
+        quantized_pair = quant(tensor_util.concat_dict_values())
+
+        get_logger().info("end quantization")
         get_logger().info("end aggregating")
-        return RepeatedResult(data=total_parameter, num=self.worker_number)
+        return RepeatedResult(
+            data=(quantized_pair, dequant),
+            num=self.worker_number,
+        )

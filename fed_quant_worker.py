@@ -1,11 +1,16 @@
 import copy
+from pathlib import Path
 
 import torch
+import torch.autograd.profiler as profiler
+from cyy_naive_lib.fs.tempdir import TempDir
 from cyy_naive_lib.log import get_logger
 from cyy_naive_pytorch_lib.algorithm.quantization.trainer import \
     QuantizationTrainer
 from cyy_naive_pytorch_lib.device import get_cpu_device
-from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase
+from cyy_naive_pytorch_lib.ml_types import (MachineLearningPhase,
+                                            StopExecutingException)
+from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.trainer import Trainer
 
@@ -19,15 +24,38 @@ class FedQuantWorker(Worker):
 
         self.local_epoch = kwargs.get("local_epoch")
         assert self.local_epoch
+        self.trainer.trainer.add_named_callback(
+            ModelExecutorCallbackPoint.AFTER_EPOCH,
+            "quantization",
+            self.__send_parameters,
+        )
+        with TempDir():
+            model_util = ModelUtil(self.trainer.trainer.model)
+            torch.save(model_util.get_parameter_dict(), "parameter_dict")
+            self.model_size = Path("parameter_dict").stat().st_size
+        self.quantized_model_size = None
+        self.worker_id = None
+        # self.trainer.trainer.add_named_callback(
+        #     ModelExecutorCallbackPoint.AFTER_BATCH,
+        #     "stop",
+        #     self.a
+        # )
 
-    def train(self, device):
-        self.trainer.prepare_quantization()
+    def train(self, device, worker_id):
+        self.worker_id = worker_id
         self.trainer.trainer.set_device(device)
-        self.trainer.train(after_epoch_callbacks=[self.__send_parameters])
+        self.trainer.prepare_quantization()
+        # with profiler.profile(use_cuda=True,with_stack=True) as prof:
+        self.trainer.train()
+        # print(
+        #     prof.key_averages(group_by_stack_n=5).table(
+        #         sort_by="self_cpu_time_total", row_limit=5
+        #     )
+        # )
 
     def __get_quantized_parameters(self) -> dict:
         quantized_model = self.trainer.get_quantized_model()
-        get_logger().info("quantized_model  is %s", quantized_model)
+        get_logger().debug("quantized_model  is %s", quantized_model)
         processed_modules = set()
         state_dict = quantized_model.state_dict()
         quantized_model_util = ModelUtil(quantized_model)
@@ -70,7 +98,7 @@ class FedQuantWorker(Worker):
                 sub_module,
                 (torch.nn.quantized.modules.batchnorm.BatchNorm2d),
             ):
-                get_logger().info("process BatchNorm2d %s", k)
+                get_logger().debug("process BatchNorm2d %s", k)
                 weight = sub_module.weight.detach()
                 assert not weight.is_quantized
                 bias = sub_module.bias.detach()
@@ -86,7 +114,10 @@ class FedQuantWorker(Worker):
                 parameter_dict[module_name + ".running_var"] = running_var
                 processed_modules.add(module_name)
                 continue
-            get_logger().warning("unsupported sub_module type %s", type(sub_module))
+            if not isinstance(
+                sub_module, torch.nn.quantized.modules.linear.LinearPackedParams
+            ):
+                get_logger().warning("unsupported sub_module type %s", type(sub_module))
 
         return parameter_dict
 
@@ -98,7 +129,7 @@ class FedQuantWorker(Worker):
         quantized_model_util = ModelUtil(quantized_model)
         for name, module in self.trainer.original_model.named_modules():
             if isinstance(module, torch.nn.modules.BatchNorm2d):
-                get_logger().info("ignore BatchNorm2d %s", name)
+                get_logger().debug("ignore BatchNorm2d %s", name)
                 torch.nn.init.ones_(module.weight)
                 torch.nn.init.zeros_(module.bias)
                 torch.nn.init.zeros_(module.running_mean)
@@ -136,44 +167,56 @@ class FedQuantWorker(Worker):
                         weight[idx] = (v - zero_point[idx]) * scale[idx]
                 model_util.set_attr(module_name + ".weight", weight)
 
-                # for suffix in [".bias"]:
                 for suffix in [".bias", ".running_mean", ".running_var"]:
                     attr_name = module_name + suffix
                     if attr_name in parameter_dict:
                         model_util.set_attr(attr_name, parameter_dict[attr_name])
                 continue
-            get_logger().warning("unsupported sub_module type %s", type(sub_module))
+            if not isinstance(
+                sub_module, torch.nn.quantized.modules.linear.LinearPackedParams
+            ):
+                get_logger().warning("unsupported sub_module type %s", type(sub_module))
         return parameter_dict
 
     def __send_parameters(self, trainer: Trainer, epoch, **kwargs):
         if epoch % self.local_epoch != 0:
             return
-
-        # self.trainer.set_model(self.quantized_model)
-
-        # inferencer = self.trainer.get_inferencer(
-        #     MachineLearningPhase.Test, copy_model=False
-        # )
-        # inferencer.set_device(get_cpu_device())
-
-        # res = inferencer.inference()
-        # get_logger().info("quantized res is %s", res)
-
         parameter_dict = self.__get_quantized_parameters()
-        self.server.add_parameter_dict(parameter_dict)
-        parameter_dict = copy.deepcopy(self.server.get_parameter_dict())
-        self.__load_quantized_parameters(parameter_dict)
 
-        self.trainer.prepare_quantization()
+        if self.quantized_model_size is None:
+            with TempDir():
+                torch.save(parameter_dict, "parameter_dict")
+                self.quantized_model_size = Path("parameter_dict").stat().st_size
+
+        get_logger().warning(
+            "model_size is %s, quantized_model_size is %s, compression ratio is %s",
+            self.model_size,
+            self.quantized_model_size,
+            float(self.quantized_model_size) / float(self.model_size),
+        )
+
+        get_logger().info("add_parameter_dict")
+        self.server.add_parameter_dict(parameter_dict)
+        get_logger().info("end add_parameter_dict")
         inferencer = self.trainer.trainer.get_inferencer(
             MachineLearningPhase.Test, copy_model=False
         )
         inferencer.set_device(get_cpu_device())
         res = inferencer.inference()
+        get_logger().info("before aggregating res is %s", res)
 
-        get_logger().info("after aggregating res is %s", res)
-        optimizer: torch.optim.Optimizer = kwargs.get("optimizer")
-        optimizer.param_groups.clear()
-        optimizer.add_param_group({"params": self.trainer.trainer.model.parameters()})
+        parameter_dict = self.server.get_parameter_dict()
+        self.__load_quantized_parameters(parameter_dict)
+
+        self.trainer.prepare_quantization()
+        if self.worker_id == 0:
+            inferencer = self.trainer.trainer.get_inferencer(
+                MachineLearningPhase.Test, copy_model=False
+            )
+            inferencer.set_device(self.trainer.trainer.device)
+            res = inferencer.inference()
+            get_logger().info("after aggregating res is %s", res)
+        self.trainer.trainer.remove_optimizer()
+        self.trainer.trainer.remove_lr_scheduler()
         self.trainer.reset_quantized_model()
         return
