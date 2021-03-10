@@ -1,12 +1,13 @@
-from typing import List, Optional
+from typing import Optional
 
-from cyy_naive_lib.algorithm.mapping_op import get_mapping_values_by_order
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 from cyy_naive_lib.log import get_logger
 from cyy_naive_pytorch_lib.algorithm.quantization.scheme import \
     stochastic_quantization
-from cyy_naive_pytorch_lib.tensor import TensorUtil
+from cyy_naive_pytorch_lib.tensor import (concat_dict_values,
+                                          get_data_serialization_size,
+                                          load_dict_values)
 
 from server import Server
 
@@ -29,9 +30,8 @@ class FedQuantServer(Server):
 
     def get_parameter_dict(self):
         quantized_pair, dequant = self.parameter_queue.get_result()
-        tensor_util = TensorUtil(self.parameter)
-        tensor_util.load_dict_values(dequant(quantized_pair))
-        return tensor_util.data
+        load_dict_values(self.parameter, dequant(quantized_pair))
+        return self.parameter
 
     def __worker(self, parameter_dict: dict, __):
         self.joined_clients += 1
@@ -62,9 +62,18 @@ class FedQuantServer(Server):
             sum_parameter[k] = v / self.worker_number
 
         get_logger().info("begin quantization")
-        tensor_util = TensorUtil(sum_parameter)
-        quant, dequant = stochastic_quantization(256)
-        quantized_pair = quant(tensor_util.concat_dict_values())
+        quantization_level = 256
+        quant, dequant = stochastic_quantization(quantization_level)
+        quantized_pair = quant(concat_dict_values(sum_parameter))
+
+        parameter_size = get_data_serialization_size(sum_parameter)
+        quantized_parameter_size = get_data_serialization_size(quantized_pair)
+        get_logger().warning(
+            "parameter_size is %s, quantized_parameter_size is %s, compression ratio is %s",
+            parameter_size,
+            quantized_parameter_size,
+            float(quantized_parameter_size) / float(parameter_size),
+        )
 
         get_logger().info("end quantization")
         get_logger().info("end aggregating")

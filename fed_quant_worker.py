@@ -1,17 +1,13 @@
-import copy
-from pathlib import Path
-
 import torch
-import torch.autograd.profiler as profiler
-from cyy_naive_lib.fs.tempdir import TempDir
+# import torch.autograd.profiler as profiler
 from cyy_naive_lib.log import get_logger
 from cyy_naive_pytorch_lib.algorithm.quantization.trainer import \
     QuantizationTrainer
 from cyy_naive_pytorch_lib.device import get_cpu_device
-from cyy_naive_pytorch_lib.ml_types import (MachineLearningPhase,
-                                            StopExecutingException)
+from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase
 from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
 from cyy_naive_pytorch_lib.model_util import ModelUtil
+from cyy_naive_pytorch_lib.tensor import get_data_serialization_size
 from cyy_naive_pytorch_lib.trainer import Trainer
 
 from fed_quant_server import FedQuantServer
@@ -29,11 +25,11 @@ class FedQuantWorker(Worker):
             "quantization",
             self.__send_parameters,
         )
-        with TempDir():
-            model_util = ModelUtil(self.trainer.trainer.model)
-            torch.save(model_util.get_parameter_dict(), "parameter_dict")
-            self.model_size = Path("parameter_dict").stat().st_size
-        self.quantized_model_size = None
+        model_util = ModelUtil(self.trainer.trainer.model)
+        self.parameter_size = get_data_serialization_size(
+            model_util.get_parameter_dict()
+        )
+        self.quantized_parameter_size = None
         self.worker_id = None
         # self.trainer.trainer.add_named_callback(
         #     ModelExecutorCallbackPoint.AFTER_BATCH,
@@ -98,7 +94,6 @@ class FedQuantWorker(Worker):
                 sub_module,
                 (torch.nn.quantized.modules.batchnorm.BatchNorm2d),
             ):
-                get_logger().debug("process BatchNorm2d %s", k)
                 weight = sub_module.weight.detach()
                 assert not weight.is_quantized
                 bias = sub_module.bias.detach()
@@ -183,16 +178,14 @@ class FedQuantWorker(Worker):
             return
         parameter_dict = self.__get_quantized_parameters()
 
-        if self.quantized_model_size is None:
-            with TempDir():
-                torch.save(parameter_dict, "parameter_dict")
-                self.quantized_model_size = Path("parameter_dict").stat().st_size
+        if self.quantized_parameter_size is None:
+            self.quantized_parameter_size = get_data_serialization_size(parameter_dict)
 
         get_logger().warning(
-            "model_size is %s, quantized_model_size is %s, compression ratio is %s",
-            self.model_size,
-            self.quantized_model_size,
-            float(self.quantized_model_size) / float(self.model_size),
+            "parameter_size is %s, quantized_parameter_size is %s, compression ratio is %s",
+            self.parameter_size,
+            self.quantized_parameter_size,
+            float(self.quantized_parameter_size) / float(self.parameter_size),
         )
 
         get_logger().info("add_parameter_dict")
@@ -202,8 +195,8 @@ class FedQuantWorker(Worker):
             MachineLearningPhase.Test, copy_model=False
         )
         inferencer.set_device(get_cpu_device())
-        res = inferencer.inference()
-        get_logger().info("before aggregating res is %s", res)
+        loss, acc, _ = inferencer.inference()
+        get_logger().warning("before aggregating loss is %s, acc is %s", loss, acc)
 
         parameter_dict = self.server.get_parameter_dict()
         self.__load_quantized_parameters(parameter_dict)
@@ -214,8 +207,8 @@ class FedQuantWorker(Worker):
                 MachineLearningPhase.Test, copy_model=False
             )
             inferencer.set_device(self.trainer.trainer.device)
-            res = inferencer.inference()
-            get_logger().info("after aggregating res is %s", res)
+            loss, acc, _ = inferencer.inference()
+            get_logger().warning("after aggregating loss is %s, acc is %s", loss, acc)
         self.trainer.trainer.remove_optimizer()
         self.trainer.trainer.remove_lr_scheduler()
         self.trainer.reset_quantized_model()
