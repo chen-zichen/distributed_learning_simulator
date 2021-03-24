@@ -10,5 +10,5 @@ class Worker(abc.ABC):
         self.server = server
 
     @abc.abstractmethod
-    def train(self, device):
+    def train(self, device, worker_id):
         pass
