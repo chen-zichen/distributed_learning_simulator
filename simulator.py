@@ -34,7 +34,7 @@ if __name__ == "__main__":
     training_datasets = DatasetUtil(trainer.dataset).iid_split(
         [1] * config.worker_number
     )
-    tester=trainer.get_inferencer(phase=MachineLearningPhase.Test)
+    tester = trainer.get_inferencer(phase=MachineLearningPhase.Test)
     server = get_server(
         config.distributed_algorithm,
         worker_number=config.worker_number,
@@ -57,6 +57,7 @@ if __name__ == "__main__":
             trainer=worker_trainer,
             server=server,
             round=config.round,
+            worker_id=worker_id,
         )
         worker_pool.exec(
             worker.train, device=devices[worker_id % len(devices)], worker_id=worker_id

@@ -8,5 +8,5 @@ class Server:
         return self.__tester
 
     @property
-    def worker_num(self):
+    def worker_number(self):
         return self.__worker_num

@@ -10,18 +10,16 @@ from server import Server
 class FedServer(Server):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.joined_clients = 0
         self.sum_parameter: Optional[dict] = None
         self.round = 0
-        self.parameter = None
+        self.parameters: dict = dict()
         self.parameter_queue = ThreadTaskQueue(worker_fun=self.__worker, worker_num=1)
 
     def stop(self):
         self.parameter_queue.stop()
 
-    def add_parameter_dict(self, parameter: dict):
-        self.parameter = parameter
-        self.parameter_queue.add_task(parameter)
+    def add_parameter_dict(self, worker_id, parameter: dict):
+        self.parameter_queue.add_task((worker_id, parameter))
 
     def get_parameter_dict(self):
         return self.parameter_queue.get_result()
@@ -32,8 +30,9 @@ class FedServer(Server):
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
         return aggregated_parameter
 
-    def __worker(self, parameter_dict: dict, __):
-        self.joined_clients += 1
+    def __worker(self, data, __):
+        worker_id, parameter_dict = data
+        self.parameters[worker_id] = parameter_dict
         parameter_dict = self._process_client_parameter(parameter_dict)
 
         if self.sum_parameter is None:
@@ -42,11 +41,10 @@ class FedServer(Server):
             for k, v in self.sum_parameter.items():
                 self.sum_parameter[k] += parameter_dict[k]
 
-        if self.joined_clients != self.worker_number:
-            get_logger().info("%s %s,skip", self.joined_clients, self.worker_number)
+        if len(self.parameters) != self.worker_number:
+            get_logger().info("%s %s,skip", len(self.parameters), self.worker_number)
             return None
         self.round += 1
-        self.joined_clients = 0
         get_logger().info("begin aggregating")
 
         sum_parameter = self.sum_parameter
@@ -57,6 +55,7 @@ class FedServer(Server):
         data = self._process_aggregated_parameter(sum_parameter)
 
         get_logger().info("end aggregating")
+        self.parameters.clear()
         return RepeatedResult(
             data=data,
             num=self.worker_number,

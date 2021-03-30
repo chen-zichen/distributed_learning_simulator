@@ -14,10 +14,11 @@ from worker import Worker
 
 class FedQuantWorker(Worker):
     def __init__(self, trainer: Trainer, server: FedQuantServer, **kwargs):
-        super().__init__(trainer, server)
+        super().__init__(trainer, server, **kwargs)
+        worker_round = kwargs.pop("round")
         self.qat = QuantizationAwareTraining(replace_layer=False)
         self.qat.append_to_model_executor(trainer)
-        self.round = kwargs.get("round")
+        self.round = worker_round
         self.trainer.add_named_callback(
             ModelExecutorCallbackPoint.AFTER_EXECUTE,
             "quantization",
@@ -28,10 +29,8 @@ class FedQuantWorker(Worker):
             model_util.get_parameter_dict()
         )
         self.quantized_parameter_size = None
-        self.worker_id = None
 
-    def train(self, device, worker_id):
-        self.worker_id = worker_id
+    def train(self, device):
         self.trainer.set_device(device)
         for _ in range(self.round):
             self.trainer.train()

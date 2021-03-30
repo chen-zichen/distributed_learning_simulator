@@ -9,11 +9,8 @@ from worker import Worker
 
 
 class SignSGDWorker(Worker):
-    def __init__(self, trainer: Trainer, server: SignSGDServer):
-        assert isinstance(trainer.get_optimizer(), SGD)
-        super().__init__(trainer, server)
-
     def train(self, device):
+        assert isinstance(self.trainer.get_optimizer(), SGD)
         self.trainer.train(
             device=device, optimizer_step_callbacks=[self.__get_gredient]
         )
