@@ -1,4 +1,5 @@
 from servers.fed_quant_server import FedQuantServer
+from servers.fed_server import FedServer
 from servers.multiround_shapley_value_server import \
     MultiRoundShapleyValueServer
 from servers.sign_sgd_server import SignSGDServer
@@ -12,6 +13,8 @@ def get_server(algorithm, **kwargs):
         return SignSGDServer(**kwargs)
     if algorithm == "fed_quant":
         return FedQuantServer(**kwargs)
+    if algorithm == "fed":
+        return FedServer(**kwargs)
     if algorithm == "multiround_shapley_value":
         return MultiRoundShapleyValueServer(**kwargs)
     raise RuntimeError("unknown algorithm:" + algorithm)
@@ -22,6 +25,6 @@ def get_worker(algorithm, **kwargs):
         return SignSGDWorker(**kwargs)
     if algorithm == "fed_quant":
         return FedQuantWorker(**kwargs)
-    if algorithm == "multiround_shapley_value":
+    if algorithm in ("fed", "multiround_shapley_value"):
         return FedWorker(**kwargs)
     raise RuntimeError("unknown algorithm:" + algorithm)
