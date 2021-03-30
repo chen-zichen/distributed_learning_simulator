@@ -13,6 +13,7 @@ class FedServer(Server):
         self.worker_number = worker_number
         self.joined_clients = 0
         self.sum_parameter: Optional[dict] = None
+        self.round = 0
         self.parameter = None
         self.parameter_queue = ThreadTaskQueue(worker_fun=self.__worker, worker_num=1)
 
@@ -45,6 +46,7 @@ class FedServer(Server):
         if self.joined_clients != self.worker_number:
             get_logger().info("%s %s,skip", self.joined_clients, self.worker_number)
             return None
+        self.round += 1
         self.joined_clients = 0
         get_logger().info("begin aggregating")
 
