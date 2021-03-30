@@ -53,7 +53,6 @@ class FedServer(Server):
             sum_parameter[k] = v / self.worker_number
 
         data = self._process_aggregated_parameter(sum_parameter)
-
         get_logger().info("end aggregating")
         self.parameters.clear()
         return RepeatedResult(

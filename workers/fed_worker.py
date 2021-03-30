@@ -23,7 +23,7 @@ class FedWorker(Worker):
 
     def __send_parameters(self, **kwargs):
         trainer = kwargs["model_executor"]
-        parameter_dict = ModelUtil(trainer.model).get_parameter_dict()
+        parameter_dict = ModelUtil(trainer.model).get_parameter_dict(detach=True)
 
         get_logger().info("add_parameter_dict")
         self.server.add_parameter_dict(self.worker_id, parameter_dict)
