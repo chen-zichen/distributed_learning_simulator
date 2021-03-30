@@ -14,9 +14,7 @@ from config import get_config
 from factory import get_server, get_worker
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
     config = get_config()
-    config.load_args(parser=parser)
     # Let python initialize pool
     ProcessPool().exec(lambda: "1")
 
@@ -59,9 +57,7 @@ if __name__ == "__main__":
             round=config.round,
             worker_id=worker_id,
         )
-        worker_pool.exec(
-            worker.train, device=devices[worker_id % len(devices)], worker_id=worker_id
-        )
+        worker_pool.exec(worker.train, device=devices[worker_id % len(devices)])
     get_logger().info("begin training")
     worker_pool.stop()
     get_logger().info("end training")

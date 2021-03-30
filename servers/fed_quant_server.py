@@ -5,10 +5,18 @@ from cyy_naive_pytorch_lib.tensor import (concat_dict_values,
                                           get_data_serialization_size,
                                           load_dict_values)
 
-from fed_server import FedServer
+from .fed_server import FedServer
 
 
 class FedQuantServer(FedServer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.parameter = None
+
+    def add_parameter_dict(self, worker_id, parameter: dict):
+        self.parameter = parameter
+        super().add_parameter_dict(worker_id, parameter)
+
     def get_parameter_dict(self):
         quantized_pair, dequant = super().get_parameter_dict()
         load_dict_values(self.parameter, dequant(quantized_pair))

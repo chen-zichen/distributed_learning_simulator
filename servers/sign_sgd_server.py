@@ -4,7 +4,7 @@ import torch
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 
-from server import Server
+from .server import Server
 
 
 class SignSGDServer(Server):

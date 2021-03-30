@@ -4,8 +4,8 @@ import torch
 from cyy_naive_pytorch_lib.trainer import Trainer
 from torch.optim.sgd import SGD
 
-from sign_sgd_server import SignSGDServer
-from worker import Worker
+from servers.sign_sgd_server import SignSGDServer
+from .worker import Worker
 
 
 class SignSGDWorker(Worker):

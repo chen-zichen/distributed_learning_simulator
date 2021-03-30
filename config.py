@@ -13,6 +13,9 @@ class ExperimentConfig(DefaultConfig):
     def load_args(self, parser=None):
         if parser is None:
             parser = argparse.ArgumentParser()
+        parser.add_argument("--distributed_algorithm", type=str, required=True)
+        parser.add_argument("--worker_number", type=int, required=True)
+        parser.add_argument("--round", type=int, required=True)
         super().load_args(parser=parser)
 
 

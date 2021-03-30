@@ -2,7 +2,7 @@ from cyy_naive_lib.log import get_logger
 from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 
-from worker import Worker
+from .worker import Worker
 
 
 class FedWorker(Worker):

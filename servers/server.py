@@ -1,7 +1,7 @@
 class Server:
-    def __init__(self, tester, worker_num):
+    def __init__(self, tester, worker_number):
         self.__tester = tester
-        self.__worker_num = worker_num
+        self.__worker_num = worker_number
 
     @property
     def tester(self):

@@ -2,7 +2,7 @@ import math
 
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 
-from shapley_value_server import ShapleyValueServer
+from .shapley_value_server import ShapleyValueServer
 
 
 class MultiRoundShapleyValueServer(ShapleyValueServer):

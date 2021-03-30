@@ -1,3 +1,4 @@
+
 from cyy_naive_lib.log import get_logger
 from cyy_naive_pytorch_lib.algorithm.quantization.qat import \
     QuantizationAwareTraining
@@ -6,10 +7,9 @@ from cyy_naive_pytorch_lib.ml_type import MachineLearningPhase
 from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.tensor import get_data_serialization_size
-from cyy_naive_pytorch_lib.trainer import Trainer
+from servers.fed_quant_server import FedQuantServer
 
-from fed_quant_server import FedQuantServer
-from worker import Worker
+from .worker import Worker
 
 
 class FedQuantWorker(Worker):

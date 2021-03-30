@@ -1,7 +1,7 @@
 import copy
 from itertools import chain, combinations
 
-from fed_server import FedServer
+from .fed_server import FedServer
 
 
 class ShapleyValueServer(FedServer):
