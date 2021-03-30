@@ -15,24 +15,6 @@ class ShapleyValueServer(FedServer):
         tester.inference()
         return tester.loss_metric.get_loss(1)
 
-    def get_subset_model(self, client_subset, init_model=None):
-        # empty set
-        if not client_subset:
-            assert init_model is not None
-            return init_model
-        avg_parameter: dict = None
-
-        for idx in client_subset:
-            parameter = self.parameters[idx]
-            if avg_parameter is None:
-                avg_parameter = parameter
-            else:
-                for k, v in avg_parameter.items():
-                    avg_parameter[k] += parameter[k]
-        for k, v in avg_parameter.items():
-            avg_parameter[k] = v / len(client_subset)
-        return avg_parameter
-
     def powerset(self, iterable):
         "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
         s = list(iterable)

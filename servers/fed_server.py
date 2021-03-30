@@ -1,5 +1,3 @@
-from typing import Optional
-
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 from cyy_naive_lib.log import get_logger
@@ -10,7 +8,6 @@ from .server import Server
 class FedServer(Server):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.sum_parameter: Optional[dict] = None
         self.round = 0
         self.parameters: dict = dict()
         self.parameter_queue = ThreadTaskQueue(worker_fun=self.__worker, worker_num=1)
@@ -30,16 +27,27 @@ class FedServer(Server):
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
         return aggregated_parameter
 
+    def get_subset_model(self, client_subset, init_model=None):
+        # empty set
+        if not client_subset:
+            assert init_model is not None
+            return init_model
+        avg_parameter: dict = None
+
+        for idx in client_subset:
+            parameter = self.parameters[idx]
+            if avg_parameter is None:
+                avg_parameter = parameter
+            else:
+                for k in avg_parameter:
+                    avg_parameter[k] += parameter[k]
+        for k, v in avg_parameter.items():
+            avg_parameter[k] = v / len(client_subset)
+        return avg_parameter
+
     def __worker(self, data, __):
         worker_id, parameter_dict = data
-        self.parameters[worker_id] = parameter_dict
-        parameter_dict = self._process_client_parameter(parameter_dict)
-
-        if self.sum_parameter is None:
-            self.sum_parameter = parameter_dict
-        else:
-            for k, v in self.sum_parameter.items():
-                self.sum_parameter[k] += parameter_dict[k]
+        self.parameters[worker_id] = self._process_client_parameter(parameter_dict)
 
         if len(self.parameters) != self.worker_number:
             get_logger().info("%s %s,skip", len(self.parameters), self.worker_number)
@@ -47,12 +55,9 @@ class FedServer(Server):
         self.round += 1
         get_logger().info("begin aggregating")
 
-        sum_parameter = self.sum_parameter
-        self.sum_parameter = None
-        for k, v in sum_parameter.items():
-            sum_parameter[k] = v / self.worker_number
+        avg_parameter = self.get_subset_model(self.parameters.keys())
 
-        data = self._process_aggregated_parameter(sum_parameter)
+        data = self._process_aggregated_parameter(avg_parameter)
         get_logger().info("end aggregating")
         self.parameters.clear()
         return RepeatedResult(

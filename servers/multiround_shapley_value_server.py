@@ -1,3 +1,4 @@
+import copy
 import math
 
 from cyy_naive_pytorch_lib.model_util import ModelUtil
@@ -8,7 +9,9 @@ from .shapley_value_server import ShapleyValueServer
 class MultiRoundShapleyValueServer(ShapleyValueServer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._prev_model = ModelUtil(self.tester.model).get_parameter_dict()
+        self._prev_model = copy.deepcopy(
+            ModelUtil(self.tester.model).get_parameter_dict()
+        )
         self.shapley_values = dict()
 
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
@@ -34,5 +37,6 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
                 )
 
         self.shapley_values[self.round] = round_shapley_values
-        self._prev_model = aggregated_parameter
+        print(self.shapley_values)
+        self._prev_model = copy.deepcopy(aggregated_parameter)
         return aggregated_parameter
