@@ -13,11 +13,11 @@ from worker import Worker
 
 
 class FedQuantWorker(Worker):
-    def __init__(self, trainer: Trainer, server: FedQuantServer, **kwargs):
-        super().__init__(trainer, server, **kwargs)
+    def __init__(self, **kwargs):
         worker_round = kwargs.pop("round")
+        super().__init__(**kwargs)
         self.qat = QuantizationAwareTraining(replace_layer=False)
-        self.qat.append_to_model_executor(trainer)
+        self.qat.append_to_model_executor(self.trainer)
         self.round = worker_round
         self.trainer.add_named_callback(
             ModelExecutorCallbackPoint.AFTER_EXECUTE,
