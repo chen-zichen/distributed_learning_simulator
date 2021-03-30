@@ -30,15 +30,16 @@ if __name__ == "__main__":
         )
     )
 
-    server = get_server(
-        config.distributed_algorithm, worker_number=config.worker_number
-    )
-
     trainer = config.create_trainer()
     training_datasets = DatasetUtil(trainer.dataset).iid_split(
         [1] * config.worker_number
     )
-    test_dataset = trainer.get_inferencer(phase=MachineLearningPhase.Test).dataset
+    tester=trainer.get_inferencer(phase=MachineLearningPhase.Test)
+    server = get_server(
+        config.distributed_algorithm,
+        worker_number=config.worker_number,
+        tester=tester,
+    )
 
     devices = get_cuda_devices()
     worker_pool = ThreadPool()

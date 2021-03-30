@@ -1,7 +1,7 @@
-from fed_quant_server import FedQuantServer
-from fed_quant_worker import FedQuantWorker
-from sign_sgd_server import SignSGDServer
-from sign_sgd_worker import SignSGDWorker
+from servers.fed_quant_server import FedQuantServer
+from servers.sign_sgd_server import SignSGDServer
+from workers.fed_quant_worker import FedQuantWorker
+from workers.sign_sgd_worker import SignSGDWorker
 
 
 def get_server(algorithm, **kwargs):

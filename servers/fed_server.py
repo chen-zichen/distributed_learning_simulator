@@ -8,9 +8,8 @@ from server import Server
 
 
 class FedServer(Server):
-    def __init__(self, worker_number: int):
-        super().__init__()
-        self.worker_number = worker_number
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.joined_clients = 0
         self.sum_parameter: Optional[dict] = None
         self.round = 0
