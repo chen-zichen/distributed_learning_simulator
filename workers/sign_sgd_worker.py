@@ -2,8 +2,6 @@ import copy
 
 import torch
 from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
-# from cyy_naive_pytorch_lib.trainer import Trainer
-# from servers.sign_sgd_server import SignSGDServer
 from torch.optim.sgd import SGD
 
 from .worker import Worker
