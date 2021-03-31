@@ -50,7 +50,7 @@ class FedServer(Server):
         self.parameters[worker_id] = self._process_client_parameter(parameter_dict)
 
         if len(self.parameters) != self.worker_number:
-            get_logger().info("%s %s,skip", len(self.parameters), self.worker_number)
+            get_logger().debug("%s %s,skip", len(self.parameters), self.worker_number)
             return None
         self.round += 1
         get_logger().info("begin aggregating")

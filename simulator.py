@@ -57,7 +57,5 @@ if __name__ == "__main__":
             worker_id=worker_id,
         )
         worker_pool.exec(worker.train, device=devices[worker_id % len(devices)])
-    get_logger().info("begin training")
     worker_pool.stop()
-    get_logger().info("end training")
     server.stop()
