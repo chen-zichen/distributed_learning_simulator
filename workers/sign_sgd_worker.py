@@ -11,6 +11,7 @@ from .worker import Worker
 
 class SignSGDWorker(Worker):
     def __init__(self, **kwargs):
+        kwargs.pop("round")
         super().__init__(**kwargs)
         assert isinstance(self.trainer.get_optimizer(), SGD)
         self.trainer.add_named_callback(

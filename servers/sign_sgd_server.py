@@ -1,16 +1,12 @@
-from typing import List
-
 import torch
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
-from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 
 from .server import Server
 
 
 class SignSGDServer(Server):
-    def __init__(self, worker_number: int):
-        super().__init__()
-        self.worker_number = worker_number
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.sign_gradients: list = []
 
     def __worker(self, sign_gradient: torch.Tensor):
