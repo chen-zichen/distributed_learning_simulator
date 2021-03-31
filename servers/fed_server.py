@@ -1,5 +1,4 @@
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
-from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
 from cyy_naive_lib.log import get_logger
 
 from .server import Server
@@ -10,16 +9,6 @@ class FedServer(Server):
         super().__init__(**kwargs)
         self.round = 0
         self.parameters: dict = dict()
-        self.parameter_queue = ThreadTaskQueue(worker_fun=self.__worker, worker_num=1)
-
-    def stop(self):
-        self.parameter_queue.stop()
-
-    def add_parameter_dict(self, worker_id, parameter: dict):
-        self.parameter_queue.add_task((worker_id, parameter))
-
-    def get_parameter_dict(self):
-        return self.parameter_queue.get_result()
 
     def _process_client_parameter(self, client_parameter: dict):
         return client_parameter
@@ -45,7 +34,7 @@ class FedServer(Server):
             avg_parameter[k] = v / len(client_subset)
         return avg_parameter
 
-    def __worker(self, data, __):
+    def _process_worker_data(self, data, __):
         worker_id, parameter_dict = data
         self.parameters[worker_id] = self._process_client_parameter(parameter_dict)
 

@@ -26,7 +26,8 @@ class FedWorker(Worker):
         parameter_dict = ModelUtil(trainer.model).get_parameter_dict(detach=True)
 
         get_logger().info("add_parameter_dict")
-        self.server.add_parameter_dict(self.worker_id, parameter_dict)
+        self.worker_data_queue.add_task((self.worker_id, parameter_dict))
         get_logger().info("end add_parameter_dict")
-        parameter_dict = self.server.get_parameter_dict()
+        parameter_dict = self.worker_data_queue.get_result()
         ModelUtil(trainer.model).load_parameter_dict(parameter_dict)
+        get_logger().info("end load_parameter_dict")
