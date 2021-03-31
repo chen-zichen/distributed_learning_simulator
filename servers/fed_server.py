@@ -1,5 +1,8 @@
+import copy
+
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.log import get_logger
+from cyy_naive_pytorch_lib.model_util import ModelUtil
 
 from .server import Server
 
@@ -9,6 +12,9 @@ class FedServer(Server):
         super().__init__(**kwargs)
         self.round = 0
         self.parameters: dict = dict()
+        self._prev_model = copy.deepcopy(
+            ModelUtil(self.tester.model).get_parameter_dict()
+        )
 
     def _process_client_parameter(self, client_parameter: dict):
         return client_parameter
@@ -47,6 +53,7 @@ class FedServer(Server):
         avg_parameter = self.get_subset_model(self.parameters.keys())
 
         data = self._process_aggregated_parameter(avg_parameter)
+        self._prev_model = copy.deepcopy(data)
         get_logger().info("end aggregating")
         self.parameters.clear()
         return RepeatedResult(
