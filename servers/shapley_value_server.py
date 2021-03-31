@@ -7,13 +7,16 @@ from .fed_server import FedServer
 
 
 class ShapleyValueServer(FedServer):
-    def get_metric(self, model: dict = None):
+    def get_metric(self, model, metric_type="acc"):
         tester = self.tester
         if model is not None:
             tester = copy.deepcopy(tester)
             ModelUtil(tester.model).load_parameter_dict(model)
         tester.inference()
-        return tester.loss_metric.get_loss(1)
+        if metric_type == "acc":
+            return tester.accuracy_metric.get_accuracy(1)
+
+        return tester.loss_metric.get_loss(1).data.item()
 
     def powerset(self, iterable):
         "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"

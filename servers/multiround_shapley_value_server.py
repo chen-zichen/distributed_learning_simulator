@@ -51,6 +51,6 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
                     * self.worker_number
                 )
 
-        get_logger().error("round_shapley_values %s", round_shapley_values)
         self.shapley_values[self.round] = round_shapley_values
+        get_logger().error("shapley_values %s", self.shapley_values)
         return aggregated_parameter
