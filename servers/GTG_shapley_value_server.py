@@ -1,4 +1,5 @@
 import numpy as np
+from cyy_naive_lib.log import get_logger
 
 from .shapley_value_server import ShapleyValueServer
 
@@ -12,21 +13,26 @@ class GTGShapleyValueServer(ShapleyValueServer):
         self.round_trunc_threshold = 0.01
 
         # converge paras
-        self.CONVERGE_MIN = max(30, self.worker_number)
+        self.converge_min = max(30, self.worker_number)
         self.last_k = 10
-        self.CONVERGE_CRITERIA = 0.05
+        self.converge_criteria = 0.05
 
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
-        last_round_metric = self.get_metric(self._prev_model).data.item()
-        this_round_metric = self.get_metric(aggregated_parameter).data.item()
+        last_round_metric = self.get_metric(self._prev_model)
+        this_round_metric = self.get_metric(aggregated_parameter)
         if abs(last_round_metric - this_round_metric) <= self.round_trunc_threshold:
+            get_logger().warning(
+                "this_round_metric %s last_round_metric %s",
+                this_round_metric,
+                last_round_metric,
+            )
             self.shapley_values[self.round] = {i: 0 for i in range(self.worker_number)}
             return aggregated_parameter
         metrics = dict()
 
         index = 0
         contribution_records: list = []
-        while self.isnotconverge(index, contribution_records):
+        while self.not_convergent(index, contribution_records):
             for worker_id in range(self.worker_number):
                 index += 1
                 v = [0 for i in range(self.worker_number + 1)]
@@ -50,7 +56,8 @@ class GTGShapleyValueServer(ShapleyValueServer):
                             subset_model = self.get_subset_model(
                                 subset, self._prev_model
                             )
-                            metric = self.get_metric(subset_model).data.item()
+                            metric = self.get_metric(subset_model)
+                            get_logger().debug("metric is %s", metric)
                             metrics[subset] = metric
                         v[j] = metrics[subset]
                     else:
@@ -59,6 +66,9 @@ class GTGShapleyValueServer(ShapleyValueServer):
                     # update SV
                     marginal_contribution[perturbed_indices[j - 1] - 1] = (
                         v[j] - v[j - 1]
+                    )
+                    get_logger().debug(
+                        "marginal_contribution %s", marginal_contribution
                     )
 
                     contribution_records.append(marginal_contribution)
@@ -74,12 +84,12 @@ class GTGShapleyValueServer(ShapleyValueServer):
         self.shapley_values[self.round] = {
             key: sv for key, sv in enumerate(shapley_value)
         }
-        print(self.shapley_values)
+        get_logger().error("shapley_value %s", self.shapley_values)
 
         return aggregated_parameter
 
-    def isnotconverge(self, index, contribution_records):
-        if index <= self.CONVERGE_MIN:
+    def not_convergent(self, index, contribution_records):
+        if index <= self.converge_min:
             return True
         all_vals = (
             np.cumsum(contribution_records, 0)
@@ -90,6 +100,6 @@ class GTGShapleyValueServer(ShapleyValueServer):
             / (np.abs(all_vals[-1:]) + 1e-12),
             -1,
         )
-        if np.max(errors) > self.CONVERGE_CRITERIA:
+        if np.max(errors) > self.converge_criteria:
             return True
         return False
