@@ -12,19 +12,8 @@ class SignSGDServer(Server):
         super().__init__()
         self.worker_number = worker_number
         self.sign_gradients: list = []
-        self.gradients_queue = ThreadTaskQueue(
-            worker_fun=self.__worker, worker_num=1)
 
-    def stop(self):
-        self.gradients_queue.stop()
-
-    def add_gradient(self, sign_gradient: List[torch.Tensor]):
-        self.gradients_queue.add_task(sign_gradient)
-
-    def get_gradient(self) -> List[torch.Tensor]:
-        return self.gradients_queue.get_result()
-
-    def __worker(self, sign_gradient: torch.Tensor, extra_args):
+    def __worker(self, sign_gradient: torch.Tensor):
         self.sign_gradients.append(sign_gradient)
         if len(self.sign_gradients) != self.worker_number:
             return None

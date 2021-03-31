@@ -1,18 +1,20 @@
 import copy
 
 import torch
-from cyy_naive_pytorch_lib.trainer import Trainer
+from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
+# from cyy_naive_pytorch_lib.trainer import Trainer
+# from servers.sign_sgd_server import SignSGDServer
 from torch.optim.sgd import SGD
 
-from servers.sign_sgd_server import SignSGDServer
 from .worker import Worker
 
 
 class SignSGDWorker(Worker):
-    def train(self, device):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         assert isinstance(self.trainer.get_optimizer(), SGD)
-        self.trainer.train(
-            device=device, optimizer_step_callbacks=[self.__get_gredient]
+        self.trainer.add_named_callback(
+            ModelExecutorCallbackPoint.OPTIMIZER_STEP, "sign", self.__get_gredient
         )
 
     @torch.no_grad()
@@ -42,8 +44,8 @@ class SignSGDWorker(Worker):
 
                 d_p = torch.sign(d_p).detach().cpu()
                 gradient.append(d_p)
-        self.server.add_gradient(gradient)
-        gradient = copy.copy(self.server.get_gradient())
+        self.worker_data_queue.add_task(gradient)
+        gradient = copy.copy(self.worker_data_queue.get_result())
         for group in optimizer.param_groups:
             weight_decay = group["weight_decay"]
             for p in group["params"]:
