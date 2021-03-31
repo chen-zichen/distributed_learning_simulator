@@ -12,23 +12,23 @@ class GTGShapleyValueServer(ShapleyValueServer):
         self.round_trunc_threshold = 0.01
 
         # converge paras
-        self.CONVERGE_MIN_K = 3 * 10
+        self.CONVERGE_MIN = max(30, self.worker_number)
         self.last_k = 10
         self.CONVERGE_CRITERIA = 0.05
 
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
-        last_round_metric = self.get_metric(self._prev_model)
-        this_round_metric = self.get_metric(aggregated_parameter)
+        last_round_metric = self.get_metric(self._prev_model).data.item()
+        this_round_metric = self.get_metric(aggregated_parameter).data.item()
         if abs(last_round_metric - this_round_metric) <= self.round_trunc_threshold:
             self.shapley_values[self.round] = {i: 0 for i in range(self.worker_number)}
             return aggregated_parameter
         metrics = dict()
 
-        k = 0
+        index = 0
         contribution_records: list = []
-        while self.isnotconverge(k, contribution_records):
+        while self.isnotconverge(index, contribution_records):
             for worker_id in range(self.worker_number):
-                k += 1
+                index += 1
                 v = [0 for i in range(self.worker_number + 1)]
                 v[0] = last_round_metric
                 marginal_contribution = [0 for i in range(self.worker_number)]
@@ -50,7 +50,7 @@ class GTGShapleyValueServer(ShapleyValueServer):
                             subset_model = self.get_subset_model(
                                 subset, self._prev_model
                             )
-                            metric = self.get_metric(subset_model)
+                            metric = self.get_metric(subset_model).data.item()
                             metrics[subset] = metric
                         v[j] = metrics[subset]
                     else:
@@ -74,11 +74,12 @@ class GTGShapleyValueServer(ShapleyValueServer):
         self.shapley_values[self.round] = {
             key: sv for key, sv in enumerate(shapley_value)
         }
+        print(self.shapley_values)
 
         return aggregated_parameter
 
-    def isnotconverge(self, k, contribution_records):
-        if k <= self.CONVERGE_MIN_K:
+    def isnotconverge(self, index, contribution_records):
+        if index <= self.CONVERGE_MIN:
             return True
         all_vals = (
             np.cumsum(contribution_records, 0)
