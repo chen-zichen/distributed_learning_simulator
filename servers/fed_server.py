@@ -2,6 +2,7 @@ import copy
 
 from cyy_naive_lib.data_structure.task_queue import RepeatedResult
 from cyy_naive_lib.log import get_logger
+from cyy_naive_pytorch_lib.device import get_device
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 
 from .server import Server
@@ -29,13 +30,16 @@ class FedServer(Server):
             return init_model
         avg_parameter: dict = None
 
+        device = get_device()
         for idx in client_subset:
             parameter = self.parameters[idx]
             if avg_parameter is None:
                 avg_parameter = parameter
             else:
                 for k in avg_parameter:
-                    avg_parameter[k] += parameter[k]
+                    avg_parameter[k] = avg_parameter[k].to(device) + parameter[k].to(
+                        device
+                    )
         for k, v in avg_parameter.items():
             avg_parameter[k] = v / len(client_subset)
         return avg_parameter
