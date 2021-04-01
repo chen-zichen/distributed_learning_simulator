@@ -48,7 +48,8 @@ if __name__ == "__main__":
         )
     )
     config.dataset_args["to_grayscale"] = True
-    bad_dc = DatasetCollection.get_by_name("CIFAR10", to_grayscale=True)
+    bad_dc = DatasetCollection.get_by_name("MNIST")
+    # , to_grayscale=True)
     bad_training_dataset = bad_dc.get_dataset(phase=MachineLearningPhase.Training)
     trainer = config.create_trainer()
     training_datasets = DatasetUtil(trainer.dataset).iid_split(
@@ -71,7 +72,7 @@ if __name__ == "__main__":
         if worker_id == 0:
             print("use bad training_dataset is worker_id 0")
             training_dataset = bad_training_dataset
-            config.dataset_name = "CIFAR10"
+            config.dataset_name = "MNIST"
         else:
             training_dataset = training_datasets[worker_id]
         worker_pool.exec(
