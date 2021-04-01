@@ -8,10 +8,8 @@ from .fed_server import FedServer
 
 class ShapleyValueServer(FedServer):
     def get_metric(self, model, metric_type="acc"):
-        tester = self.tester
-        if model is not None:
-            tester = copy.deepcopy(tester)
-            ModelUtil(tester.model).load_parameter_dict(model)
+        tester = copy.deepcopy(self.tester)
+        ModelUtil(tester.model).load_parameter_dict(model)
         tester.inference()
         if metric_type == "acc":
             return tester.accuracy_metric.get_accuracy(1)

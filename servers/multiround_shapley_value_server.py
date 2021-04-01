@@ -1,4 +1,5 @@
 import math
+import pickle
 
 from cyy_naive_lib.log import get_logger
 
@@ -14,7 +15,7 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
         metrics = dict()
         if self.round_trunc_threshold is not None:
-            last_round_metric = self.get_metric(self._prev_model)
+            last_round_metric = self.get_metric(self.prev_model)
             this_round_metric = self.get_metric(aggregated_parameter)
             metrics[()] = last_round_metric
             metrics[tuple(sorted(range(self.worker_number)))] = this_round_metric
@@ -32,7 +33,7 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
         for subset in self.powerset(range(self.worker_number)):
             key = tuple(sorted(subset))
             if key not in metrics:
-                subset_model = self.get_subset_model(subset, self._prev_model)
+                subset_model = self.get_subset_model(subset)
                 metric = self.get_metric(subset_model)
                 metrics[key] = metric
 
@@ -50,6 +51,8 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
                     (math.comb(self.worker_number - 1, len(subset) - 1))
                     * self.worker_number
                 )
+        with open("metric_" + str(self.round), "wb") as f:
+            pickle.dump(metrics, f)
 
         self.shapley_values[self.round] = round_shapley_values
         get_logger().error("shapley_values %s", self.shapley_values)

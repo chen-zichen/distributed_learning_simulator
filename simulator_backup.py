@@ -1,4 +1,5 @@
 # import copy
+import copy
 import datetime
 import os
 
@@ -18,9 +19,10 @@ server = None
 
 def create_worker_and_train(worker_id, config, training_dataset, device):
     trainer = config.create_trainer(False)
-    trainer.dataset_collection.transform_dataset(
-        MachineLearningPhase.Training, lambda _: training_dataset
-    )
+    if worker_id != 0:
+        trainer.dataset_collection.transform_dataset(
+            MachineLearningPhase.Training, lambda _: training_dataset
+        )
     worker = get_worker(
         config.distributed_algorithm,
         trainer=trainer,
@@ -75,7 +77,7 @@ if __name__ == "__main__":
         worker_pool.exec(
             create_worker_and_train,
             worker_id=worker_id,
-            config=config,
+            config=copy.deepcopy(config),
             training_dataset=training_dataset,
             device=devices[worker_id % len(devices)],
         )

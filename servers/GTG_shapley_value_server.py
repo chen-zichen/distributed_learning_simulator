@@ -18,14 +18,9 @@ class GTGShapleyValueServer(ShapleyValueServer):
         self.converge_criteria = 0.05
 
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
-        last_round_metric = self.get_metric(self._prev_model)
+        last_round_metric = self.get_metric(self.prev_model)
         this_round_metric = self.get_metric(aggregated_parameter)
         if abs(last_round_metric - this_round_metric) <= self.round_trunc_threshold:
-            get_logger().warning(
-                "this_round_metric %s last_round_metric %s",
-                this_round_metric,
-                last_round_metric,
-            )
             self.shapley_values[self.round] = {i: 0 for i in range(self.worker_number)}
             return aggregated_parameter
         metrics = dict()
@@ -49,43 +44,30 @@ class GTGShapleyValueServer(ShapleyValueServer):
 
                 for j in range(1, self.worker_number + 1):
                     subset = tuple(sorted(perturbed_indices[:j].tolist()))
-
                     # truncation
                     if abs(this_round_metric - v[j - 1]) >= self.eps:
                         if subset not in metrics:
-                            subset_model = self.get_subset_model(
-                                subset, self._prev_model
-                            )
+                            subset_model = self.get_subset_model(subset)
                             metric = self.get_metric(subset_model)
-                            get_logger().debug("metric is %s", metric)
                             metrics[subset] = metric
                         v[j] = metrics[subset]
                     else:
                         v[j] = v[j - 1]
 
                     # update SV
-                    marginal_contribution[perturbed_indices[j - 1] - 1] = (
-                        v[j] - v[j - 1]
-                    )
-                    get_logger().debug(
-                        "marginal_contribution %s", marginal_contribution
-                    )
-
+                    marginal_contribution[perturbed_indices[j - 1]] = v[j] - v[j - 1]
                     contribution_records.append(marginal_contribution)
 
         # shapley value calculation
-        shapley_value = (
-            np.cumsum(contribution_records, 0)
-            / np.reshape(np.arange(1, len(contribution_records) + 1), (-1, 1))
-        )[-1:].tolist()[0]
+        shapley_value = np.sum(contribution_records, 0) / len(contribution_records)
+
         assert len(shapley_value) == self.worker_number
 
         # store round t results
         self.shapley_values[self.round] = {
             key: sv for key, sv in enumerate(shapley_value)
         }
-        get_logger().error("shapley_value %s", self.shapley_values)
-
+        get_logger().info("shapley_value %s", self.shapley_values[self.round])
         return aggregated_parameter
 
     def not_convergent(self, index, contribution_records):
