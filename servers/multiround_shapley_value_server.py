@@ -19,12 +19,13 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
             this_round_metric = self.get_metric(aggregated_parameter)
             metrics[()] = last_round_metric
             metrics[tuple(sorted(range(self.worker_number)))] = this_round_metric
+            get_logger().info(
+                "this_round_metric %s last_round_metric %s round_trunc_threshold %s",
+                this_round_metric,
+                last_round_metric,
+                self.round_trunc_threshold,
+            )
             if abs(this_round_metric - last_round_metric) <= self.round_trunc_threshold:
-                get_logger().warning(
-                    "this_round_metric %s last_round_metric %s",
-                    this_round_metric,
-                    last_round_metric,
-                )
                 self.shapley_values[self.round] = {
                     i: 0 for i in range(self.worker_number)
                 }
@@ -36,6 +37,7 @@ class MultiRoundShapleyValueServer(ShapleyValueServer):
                 subset_model = self.get_subset_model(subset)
                 metric = self.get_metric(subset_model)
                 metrics[key] = metric
+                get_logger().info("round %s key %s metric %s", self.round, key, metric)
 
         round_shapley_values = dict()
         for subset, metric in metrics.items():

@@ -20,6 +20,12 @@ class GTGShapleyValueServer(ShapleyValueServer):
     def _process_aggregated_parameter(self, aggregated_parameter: dict):
         last_round_metric = self.get_metric(self.prev_model)
         this_round_metric = self.get_metric(aggregated_parameter)
+        get_logger().info(
+            "last_round_metric %s ,this_round_metric %s, round_trunc_threshold %s",
+            last_round_metric,
+            this_round_metric,
+            self.round_trunc_threshold,
+        )
         if abs(last_round_metric - this_round_metric) <= self.round_trunc_threshold:
             self.shapley_values[self.round] = {i: 0 for i in range(self.worker_number)}
             return aggregated_parameter
@@ -84,4 +90,11 @@ class GTGShapleyValueServer(ShapleyValueServer):
         )
         if np.max(errors) > self.converge_criteria:
             return True
+        get_logger().info(
+            "not convergent for index %s and converge_min %s max error %s converge_criteria %s",
+            index,
+            self.converge_min,
+            np.max(errors),
+            self.converge_criteria,
+        )
         return False
