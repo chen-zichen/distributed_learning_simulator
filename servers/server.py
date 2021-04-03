@@ -1,5 +1,7 @@
 from cyy_naive_lib.data_structure.process_task_queue import ProcessTaskQueue
 from cyy_naive_lib.data_structure.thread_task_queue import ThreadTaskQueue
+from cyy_naive_pytorch_lib.data_structure.cuda_process_task_queue import \
+    CUDAProcessTaskQueue
 
 
 class Server:
@@ -7,7 +9,7 @@ class Server:
         self.__tester = tester
         self.__worker_num = worker_number
         if multi_process:
-            self.__worker_data_queue = ProcessTaskQueue(
+            self.__worker_data_queue = CUDAProcessTaskQueue(
                 worker_fun=self._process_worker_data
             )
         else:

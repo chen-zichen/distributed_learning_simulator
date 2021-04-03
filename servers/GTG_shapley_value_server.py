@@ -46,7 +46,7 @@ class GTGShapleyValueServer(ShapleyValueServer):
                             [i for i in range(self.worker_number) if i != worker_id]
                         ),
                     )
-                )
+                ).astype(int)
 
                 for j in range(1, self.worker_number + 1):
                     subset = tuple(sorted(perturbed_indices[:j].tolist()))
