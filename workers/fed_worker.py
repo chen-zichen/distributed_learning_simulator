@@ -18,6 +18,10 @@ class FedWorker(Worker):
 
     def train(self, device):
         self.trainer.set_device(device)
+        # load initial model
+        parameter_dict = self.worker_data_queue.get_result()
+        ModelUtil(self.trainer.model).load_parameter_dict(parameter_dict)
+        get_logger().info("end load initial parameter_dict")
         for _ in range(self.round):
             self.trainer.train()
 

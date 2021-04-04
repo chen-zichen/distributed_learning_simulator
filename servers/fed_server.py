@@ -16,6 +16,12 @@ class FedServer(Server):
         self.__prev_model = copy.deepcopy(
             ModelUtil(self.tester.model).get_parameter_dict()
         )
+        self.worker_data_queue.put_result(
+            RepeatedResult(
+                data=self.prev_model,
+                num=self.worker_number,
+            )
+        )
 
     @property
     def prev_model(self):
@@ -49,7 +55,6 @@ class FedServer(Server):
                     avg_parameter[k] = tmp
                 else:
                     avg_parameter[k] += tmp
-        print("get subset of ", client_subset)
         return avg_parameter
 
     def _process_worker_data(self, data, __):

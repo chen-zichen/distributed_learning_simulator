@@ -67,5 +67,6 @@ if __name__ == "__main__":
             training_dataset=training_datasets[worker_id],
             device=devices[worker_id % len(devices)],
         )
+
     worker_pool.stop()
     server.stop()
