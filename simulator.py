@@ -53,14 +53,11 @@ if __name__ == "__main__":
         config.distributed_algorithm,
         tester=tester,
         worker_number=config.worker_number,
-        multi_process=config.use_multiprocessing,
+        multi_process=False,
     )
 
     devices = get_cuda_devices()
-    if config.use_multiprocessing:
-        worker_pool = ProcessPool()
-    else:
-        worker_pool = ThreadPool()
+    worker_pool = ThreadPool()
 
     for worker_id in range(config.worker_number):
         worker_pool.exec(
