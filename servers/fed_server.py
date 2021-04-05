@@ -23,6 +23,14 @@ class FedServer(Server):
             )
         )
 
+    def get_metric(self, model, metric_type="acc"):
+        ModelUtil(self.tester.model).load_parameter_dict(model)
+        self.tester.inference()
+        if metric_type == "acc":
+            return self.tester.accuracy_metric.get_accuracy(1)
+
+        return self.tester.loss_metric.get_loss(1).data.item()
+
     @property
     def prev_model(self):
         return self.__prev_model
@@ -74,7 +82,8 @@ class FedServer(Server):
 
         data = self._process_aggregated_parameter(avg_parameter)
         self.__prev_model = copy.deepcopy(data)
-        get_logger().info("end aggregating")
+        acc = self.get_metric(self.prev_model)
+        get_logger().info("end aggregating, test accuracy is %s", acc)
         self.parameters.clear()
         return RepeatedResult(
             data=data,
