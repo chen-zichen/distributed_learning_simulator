@@ -1,0 +1,13 @@
+2021-04-06 13:07:21,304 INFO {thd:139757912131392} [arg_parse.py => 72] : use dataset MNIST and model LeNet5
+2021-04-06 13:07:37,022 INFO {thd:139755303085632} [trainer.py => 144] : training_set_size is 49995
+2021-04-06 13:07:37,022 INFO {thd:139755303085632} [trainer.py => 148] : use device cuda:0
+2021-04-06 13:07:37,022 INFO {thd:139757912131392} [simulator.py => 52] : begin training
+2021-04-06 13:07:38,859 INFO {thd:139755303085632} [trainer.py => 359] : begin training, hyper_parameter is epochs:1 batch_size:64 learning_rate:0.01 weight_decay:1 optimizer:<class 'torch.optim.sgd.SGD'>, optimizer is SGD (
+Parameter Group 0
+    dampening: 0
+    lr: 0.01
+    momentum: 0.9
+    nesterov: False
+    weight_decay: 2.0002000200020003e-05
+) ,lr_scheduler is <torch.optim.lr_scheduler.ReduceLROnPlateau object at 0x7f1b70ab4bd0>, model: LeNet5, loss_fun: NLLLoss(), parameter number is 61706
+2021-04-06 13:07:39,102 ERROR {thd:139755303085632} [executor_pool.py => 37] : catch exception:name 'np' is not defined

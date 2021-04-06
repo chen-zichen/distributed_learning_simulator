@@ -1,0 +1,22 @@
+2021-04-06 13:14:12,628 INFO {thd:140482836096832} [arg_parse.py => 72] : use dataset MNIST and model LeNet5
+2021-04-06 13:14:29,003 INFO {thd:140480337245760} [trainer.py => 144] : training_set_size is 49995
+2021-04-06 13:14:29,003 INFO {thd:140480337245760} [trainer.py => 148] : use device cuda:0
+2021-04-06 13:14:29,004 INFO {thd:140482836096832} [simulator.py => 52] : begin training
+2021-04-06 13:14:30,807 INFO {thd:140480337245760} [trainer.py => 359] : begin training, hyper_parameter is epochs:1 batch_size:64 learning_rate:0.01 weight_decay:1 optimizer:<class 'torch.optim.sgd.SGD'>, optimizer is SGD (
+Parameter Group 0
+    dampening: 0
+    lr: 0.01
+    momentum: 0.9
+    nesterov: False
+    weight_decay: 2.0002000200020003e-05
+) ,lr_scheduler is <torch.optim.lr_scheduler.ReduceLROnPlateau object at 0x7fc439813dd0>, model: LeNet5, loss_fun: NLLLoss(), parameter number is 61706
+2021-04-06 13:14:31,141 ERROR {thd:140480754980416} [task_queue.py => 49] : catch exception:'list' object has no attribute 'cpu'
+2021-04-06 13:14:31,141 ERROR {thd:140480754980416} [task_queue.py => 50] : traceback:Traceback (most recent call last):
+  File "/home/cicie/.local/lib/python3.7/site-packages/cyy_naive_lib-0.1-py3.7.egg/cyy_naive_lib/data_structure/task_queue.py", line 36, in worker
+    res = worker_fun(task, extra_arguments)
+  File "/home/cicie/distributed_learning_simulator/qsgd/qsgd_server.py", line 35, in __worker
+    total_q_gradients[idx] = function_gradient(q_gradients)
+  File "/home/cicie/distributed_learning_simulator/qsgd/qsgd_server.py", line 43, in function_gradient
+    q_gradients = q_gradients.cpu()
+AttributeError: 'list' object has no attribute 'cpu'
+

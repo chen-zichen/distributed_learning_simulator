@@ -1,0 +1,18 @@
+2021-04-05 16:38:25,656 INFO {thd:140630177363776} [arg_parse.py => 72] : use dataset MNIST and model LeNet5
+2021-04-05 16:38:48,519 INFO {thd:140627295598144} [trainer.py => 144] : training_set_size is 49995
+2021-04-05 16:38:48,519 INFO {thd:140627295598144} [trainer.py => 148] : use device cuda:0
+2021-04-05 16:38:48,519 INFO {thd:140630177363776} [simulator.py => 52] : begin training
+2021-04-05 16:38:51,461 INFO {thd:140627295598144} [trainer.py => 359] : begin training, hyper_parameter is epochs:1 batch_size:64 learning_rate:0.01 weight_decay:1 optimizer:<class 'torch.optim.sgd.SGD'>, optimizer is SGD (
+Parameter Group 0
+    dampening: 0
+    lr: 0.01
+    momentum: 0.9
+    nesterov: False
+    weight_decay: 2.0002000200020003e-05
+) ,lr_scheduler is <torch.optim.lr_scheduler.ReduceLROnPlateau object at 0x7fe6861e98d0>, model: QuantedModel, loss_fun: NLLLoss(), parameter number is 61706
+2021-04-05 16:38:51,946 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 0, learning rate: [0.01], batch training loss: 2.3053078651428223
+2021-04-05 16:38:54,256 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 78, learning rate: [0.01], batch training loss: 1.9701273441314697
+2021-04-05 16:38:56,492 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 156, learning rate: [0.01], batch training loss: 0.6693560481071472
+2021-04-05 16:38:58,566 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 234, learning rate: [0.01], batch training loss: 0.21544405817985535
+2021-04-05 16:39:00,856 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 312, learning rate: [0.01], batch training loss: 0.2766556441783905
+2021-04-05 16:39:03,216 INFO {thd:140627295598144} [trainer.py => 375] : epoch: 1, batch: 390, learning rate: [0.01], batch training loss: 0.13707168400287628
