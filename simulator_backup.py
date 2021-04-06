@@ -1,11 +1,13 @@
 # import copy
+import copy
 import datetime
 import os
 
 from cyy_naive_lib.data_structure.process_pool import ProcessPool
 from cyy_naive_lib.data_structure.thread_pool import ThreadPool
-from cyy_naive_lib.log import get_logger, set_file_handler
+from cyy_naive_lib.log import set_file_handler
 from cyy_naive_pytorch_lib.dataset import DatasetUtil
+from cyy_naive_pytorch_lib.dataset_collection import DatasetCollection
 from cyy_naive_pytorch_lib.device import get_cuda_devices
 from cyy_naive_pytorch_lib.ml_type import MachineLearningPhase
 
@@ -17,9 +19,10 @@ server = None
 
 def create_worker_and_train(worker_id, config, training_dataset, device):
     trainer = config.create_trainer(False)
-    trainer.dataset_collection.transform_dataset(
-        MachineLearningPhase.Training, lambda _: training_dataset
-    )
+    if worker_id != 0:
+        trainer.dataset_collection.transform_dataset(
+            MachineLearningPhase.Training, lambda _: training_dataset
+        )
     worker = get_worker(
         config.distributed_algorithm,
         trainer=trainer,
@@ -44,6 +47,10 @@ if __name__ == "__main__":
             "{date:%Y-%m-%d_%H:%M:%S}.log".format(date=datetime.datetime.now()),
         )
     )
+    config.dataset_args["to_grayscale"] = True
+    bad_dc = DatasetCollection.get_by_name("MNIST")
+    # , to_grayscale=True)
+    bad_training_dataset = bad_dc.get_dataset(phase=MachineLearningPhase.Training)
     trainer = config.create_trainer()
     training_datasets = DatasetUtil(trainer.dataset).iid_split(
         [1] * config.worker_number
@@ -58,15 +65,23 @@ if __name__ == "__main__":
 
     devices = get_cuda_devices()
     worker_pool = ThreadPool()
+    # worker_pool = ProcessPool()
 
+    old_dataset_name = config.dataset_name
     for worker_id in range(config.worker_number):
+        if worker_id == 0:
+            print("use bad training_dataset is worker_id 0")
+            training_dataset = bad_training_dataset
+            config.dataset_name = "MNIST"
+        else:
+            training_dataset = training_datasets[worker_id]
         worker_pool.exec(
             create_worker_and_train,
             worker_id=worker_id,
-            config=config,
-            training_dataset=training_datasets[worker_id],
+            config=copy.deepcopy(config),
+            training_dataset=training_dataset,
             device=devices[worker_id % len(devices)],
         )
-
+        config.dataset_name = old_dataset_name
     worker_pool.stop()
     server.stop()

@@ -1,21 +1,19 @@
 import copy
 
 import torch
-from cyy_naive_pytorch_lib.trainer import Trainer
+from cyy_naive_pytorch_lib.model_executor import ModelExecutorCallbackPoint
 from torch.optim.sgd import SGD
 
-from sign_sgd_server import SignSGDServer
-from worker import Worker
+from .worker import Worker
 
 
 class SignSGDWorker(Worker):
-    def __init__(self, trainer: Trainer, server: SignSGDServer):
-        assert isinstance(trainer.get_optimizer(), SGD)
-        super().__init__(trainer, server)
-
-    def train(self, device):
-        self.trainer.train(
-            device=device, optimizer_step_callbacks=[self.__get_gredient]
+    def __init__(self, **kwargs):
+        kwargs.pop("round")
+        super().__init__(**kwargs)
+        assert isinstance(self.trainer.get_optimizer(), SGD)
+        self.trainer.add_named_callback(
+            ModelExecutorCallbackPoint.OPTIMIZER_STEP, "sign", self.__get_gredient
         )
 
     @torch.no_grad()
@@ -34,8 +32,7 @@ class SignSGDWorker(Worker):
                 if momentum != 0:
                     param_state = optimizer.state[p]
                     if "momentum_buffer" not in param_state:
-                        buf = param_state["momentum_buffer"] = torch.clone(
-                            d_p).detach()
+                        buf = param_state["momentum_buffer"] = torch.clone(d_p).detach()
                     else:
                         buf = param_state["momentum_buffer"]
                         buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
@@ -46,8 +43,8 @@ class SignSGDWorker(Worker):
 
                 d_p = torch.sign(d_p).detach().cpu()
                 gradient.append(d_p)
-        self.server.add_gradient(gradient)
-        gradient = copy.copy(self.server.get_gradient())
+        self.worker_data_queue.add_task(gradient)
+        gradient = copy.copy(self.worker_data_queue.get_result())
         for group in optimizer.param_groups:
             weight_decay = group["weight_decay"]
             for p in group["params"]:
