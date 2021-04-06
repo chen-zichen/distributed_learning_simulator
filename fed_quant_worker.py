@@ -2,6 +2,9 @@ import copy
 
 import torch
 from cyy_naive_lib.log import get_logger
+from cyy_naive_pytorch_lib.device import get_cpu_device
+from cyy_naive_pytorch_lib.inference import Inferencer
+from cyy_naive_pytorch_lib.ml_types import MachineLearningPhase, ModelType
 from cyy_naive_pytorch_lib.model_util import ModelUtil
 from cyy_naive_pytorch_lib.trainer import Trainer
 from torch.optim.sgd import SGD
@@ -17,20 +20,37 @@ class FedQuantWorker(Worker):
         assert isinstance(trainer.get_optimizer(), SGD)
 
         self.local_epoch = kwargs.get("local_epoch")
-        parameter_size = self.__get_parameter_list().shape[0]
 
-        quant_model = QuantModel(in_features=parameter_size)
+        quant_model = QuantedModel(self.trainer.model)
+        quant_model.train()
         quant_model.qconfig = torch.quantization.get_default_qat_qconfig("fbgemm")
-        # quant_model_fused = torch.quantization.fuse_modules(
-        #     quant_model, [["linear1", "relu1"], ["linear2", "relu2"]]
-        # )
-        # self.quant_model_prepared = torch.quantization.prepare_qat(quant_model_fused)
-        self.quant_model_prepared = torch.quantization.prepare_qat(quant_model)
-        self.quanted_model = QuantedModel(self.trainer.model, self.quant_model_prepared)
-        self.trainer.set_model(self.quanted_model)
+        quant_model_fused = torch.quantization.fuse_modules(
+            quant_model,
+            [
+                # ["submodule.convnet.c1", "submodule.convnet.relu1"],
+                # ["submodule.convnet.c3", "submodule.convnet.relu3"],
+                ["submodule.fc.f6", "submodule.fc.relu6"],
+                # ["fc.f7", "fc.sig7"],
+            ],
+        )
+        quant_model_prepared = torch.quantization.prepare_qat(quant_model_fused)
+        self.trainer.set_model(quant_model_prepared)
 
     def train(self, device):
-        self.trainer.train(device=device, after_epoch_callbacks=[])
+        self.trainer.train(device=device)
+        # , after_epoch_callbacks=[])
+        self.trainer.model.eval()
+        self.trainer.model.cpu()
+        print("convert")
+        torch.quantization.convert(self.trainer.model, inplace=True)
+        print("after convert")
+        # print("after_convert,model is", model_int8)
+        # self.trainer.set_model(model_int8)
+        # print("after_convert")
+        inferencer: Inferencer = self.trainer.get_inferencer(MachineLearningPhase.Test)
+        # print("after_convert")
+        res = inferencer.inference()
+        print(res)
 
     def __get_parameter_list(self):
         return ModelUtil(self.trainer.model).get_parameter_list()
@@ -38,8 +58,9 @@ class FedQuantWorker(Worker):
     def __send_parameters(self, trainer, epoch, **kwargs):
         if epoch % self.local_epoch != 0:
             return
-        get_logger().info("aggregate parameters at epoch %s", epoch)
-        self.server.add_parameter(self.__get_parameter_list())
-        parameter_list = copy.deepcopy(self.server.get_parameter_list())
-        ModelUtil(trainer.model).load_parameter_list(parameter_list)
+
+        # get_logger().info("aggregate parameters at epoch %s", epoch)
+        # self.server.add_parameter(self.__get_parameter_list())
+        # parameter_list = copy.deepcopy(self.server.get_parameter_list())
+        # ModelUtil(trainer.model).load_parameter_list(parameter_list)
         get_logger().info("finish aggregating parameters at epoch %s", epoch)
