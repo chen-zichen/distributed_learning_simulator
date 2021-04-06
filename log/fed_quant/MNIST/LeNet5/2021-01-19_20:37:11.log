@@ -1,3 +1,0 @@
-2021-01-19 20:37:11,483 INFO {thd:139718728836928} [arg_parse.py => 72] : use dataset MNIST and model LeNet5
-2021-01-19 20:37:32,777 ERROR {thd:139716129482496} [executor_pool.py => 37] : catch exception:module 'threading' has no attribute 'get_native_id'
-2021-01-19 20:37:32,777 INFO {thd:139718728836928} [simulator.py => 52] : begin training
