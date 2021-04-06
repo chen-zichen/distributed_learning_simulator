@@ -71,7 +71,6 @@ def function_gradient(q_gradients):
     previous_level = np.floor(level_float)
     is_next_level = torch.rand(*q_gradients.shape) < (level_float - previous_level)
     new_level = previous_level + is_next_level
-
     tensor_compressed = np.sign(q_gradients) * norm * new_level / level
 
     return tensor_compressed
