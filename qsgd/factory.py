@@ -4,6 +4,8 @@
 # from sign_sgd_worker import SignSGDWorker
 from qsgd_server import QsgdServer
 from qsgd_worker import QsgdWorker
+from sketch_server import SketchsgdServer
+from sketch_worker import SketchsgdWorker
 
 
 def get_server(algorithm, **kwargs):
@@ -11,8 +13,11 @@ def get_server(algorithm, **kwargs):
         return SignSGDServer(**kwargs)
     if algorithm == "fed_quant":
         return FedQuantServer(**kwargs)
-    if algorithm == "QSGD":
+    if algorithm == "qsgd":
         return QsgdServer(**kwargs)
+    if algorithm == "sketch":
+        return SketchsgdServer(**kwargs)
+
     raise RuntimeError("unknown algorithm:" + algorithm)
 
 
@@ -21,6 +26,8 @@ def get_worker(algorithm, **kwargs):
         return SignSGDWorker(**kwargs)
     if algorithm == "fed_quant":
         return FedQuantWorker(**kwargs)
-    if algorithm == "QSGD":
+    if algorithm == "qsgd":
         return QsgdWorker(**kwargs)
+    if algorithm == "sketch":
+        return SketchsgdWorker(**kwargs)
     raise RuntimeError("unknown algorithm:" + algorithm)
